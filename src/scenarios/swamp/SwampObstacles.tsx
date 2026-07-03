@@ -1,0 +1,439 @@
+import { useFrame } from '@react-three/fiber';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import * as THREE from 'three';
+import { useGameStore } from '../../store/gameStore';
+import { ObstacleData, ObstacleType, PowerupType } from '../types';
+
+const SPAWN_DISTANCE = 30;
+const DESPAWN_DISTANCE = -10;
+
+// Reusable static materials
+const deadWoodMaterial = new THREE.MeshStandardMaterial({ color: '#57534e', roughness: 0.95 }); // Lighter grey/brown for visibility
+const crocMaterial = new THREE.MeshStandardMaterial({ color: '#15803d', roughness: 0.8 });
+const crocSpikeMaterial = new THREE.MeshStandardMaterial({ color: '#064e3b', roughness: 0.9 });
+const crowMaterial = new THREE.MeshStandardMaterial({ color: '#171717', roughness: 0.5 });
+const crowBeakMaterial = new THREE.MeshStandardMaterial({ color: '#44403c', roughness: 0.8 });
+const waterMaterial = new THREE.MeshStandardMaterial({ color: '#0f766e', roughness: 0.1, transparent: true, opacity: 0.8 });
+const mossMaterial = new THREE.MeshStandardMaterial({ color: '#22c55e', roughness: 0.9 }); // Brighter moss
+const mushroomMaterial = new THREE.MeshStandardMaterial({ color: '#a7f3d0', emissive: '#34d399', emissiveIntensity: 0.8 });
+const crocEyeMaterial = new THREE.MeshStandardMaterial({ color: '#fef08a', emissive: '#facc15', emissiveIntensity: 1.0 });
+const blackEyeMaterial = new THREE.MeshBasicMaterial({ color: 'black' });
+const powerupTextMaterial = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+
+// Reusable static geometries
+const cylinderTrunkHighGeo = new THREE.CylinderGeometry(0.3, 0.5, 3.0, 6);
+const cylinderTrunkLowGeo = new THREE.CylinderGeometry(0.3, 0.5, 1.5, 6);
+const cylinderBranch1Geo = new THREE.CylinderGeometry(0.1, 0.2, 1, 5);
+const cylinderVine1Geo = new THREE.CylinderGeometry(0.02, 0.02, 1, 3);
+const cylinderBranch2Geo = new THREE.CylinderGeometry(0.05, 0.15, 0.8, 5);
+const cylinderVine2Geo = new THREE.CylinderGeometry(0.015, 0.015, 0.8, 3);
+const shroomGeo1 = new THREE.BoxGeometry(0.1, 0.05, 0.1);
+const shroomGeo2 = new THREE.BoxGeometry(0.08, 0.04, 0.08);
+
+const crowBodyGeo = new THREE.BoxGeometry(0.8, 0.4, 0.4);
+const crowWingGeo = new THREE.BoxGeometry(0.6, 0.05, 0.8);
+const crowHeadGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+const crowBeakGeo = new THREE.BoxGeometry(0.3, 0.1, 0.1);
+
+const crocHitboxGeo = new THREE.BoxGeometry(5.0, 0.5, 0.8);
+const crocBodyGeo = new THREE.BoxGeometry(3, 0.5, 1);
+const crocSpikeGeo1 = new THREE.ConeGeometry(0.3, 0.6, 4);
+const crocSpikeGeo2 = new THREE.ConeGeometry(0.2, 0.4, 4);
+const crocBumpGeo = new THREE.BoxGeometry(0.4, 0.2, 0.4);
+const crocTailGeo = new THREE.BoxGeometry(1.5, 0.3, 0.6);
+const crocHeadGeo = new THREE.BoxGeometry(1.2, 0.4, 0.8);
+const crocSnoutGeo = new THREE.BoxGeometry(1.0, 0.2, 0.7);
+const crocBottomJawGeo = new THREE.BoxGeometry(1.0, 0.15, 0.6);
+const crocEyeGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+const crocPupilGeo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+
+const puddleCylinderGeo = new THREE.CylinderGeometry(3, 3, 0.1, 16);
+const puddleHitboxGeo = new THREE.BoxGeometry(4, 3, 4);
+
+const powerupBoxGeo = new THREE.BoxGeometry(1, 1, 1);
+const powerupHorizontalBarGeo = new THREE.BoxGeometry(0.5, 0.15, 0.05);
+const powerupVerticalBarGeo = new THREE.BoxGeometry(0.15, 0.5, 0.05);
+const powerupQ1Geo = new THREE.BoxGeometry(0.4, 0.1, 0.05);
+const powerupQ2Geo = new THREE.BoxGeometry(0.1, 0.2, 0.05);
+const powerupQ3Geo = new THREE.BoxGeometry(0.3, 0.1, 0.05);
+const powerupQ4Geo = new THREE.BoxGeometry(0.1, 0.1, 0.05);
+
+const DeadTree = forwardRef<THREE.Group, { x: number; scale: number; isHigh?: boolean }>(
+  ({ x, scale, isHigh = false }, ref) => {
+    const height = isHigh ? 3 : 1.5;
+    const geometry = isHigh ? cylinderTrunkHighGeo : cylinderTrunkLowGeo;
+    return (
+      <group ref={ref} position={[x, 0, 0]} scale={scale}>
+        {/* Trunk */}
+        <mesh position={[0, height / 2, 0]} castShadow receiveShadow material={deadWoodMaterial} geometry={geometry} />
+        {/* Branch */}
+        <mesh position={[0.4, height * 0.7, 0]} rotation={[0, 0, -Math.PI / 4]} castShadow receiveShadow material={deadWoodMaterial} geometry={cylinderBranch1Geo} />
+        {/* Vine hanging from branch */}
+        <mesh position={[0.7, height * 0.7 - 0.5, 0]} castShadow receiveShadow material={mossMaterial} geometry={cylinderVine1Geo} />
+
+        {/* Another Branch */}
+        {isHigh && (
+           <mesh position={[-0.4, height * 0.9, 0]} rotation={[0, 0, Math.PI / 4]} castShadow receiveShadow material={deadWoodMaterial} geometry={cylinderBranch2Geo} />
+        )}
+        {/* Vine hanging from another branch */}
+        {isHigh && (
+           <mesh position={[-0.6, height * 0.9 - 0.4, 0]} castShadow receiveShadow material={mossMaterial} geometry={cylinderVine2Geo} />
+        )}
+
+        {/* Glowing Mushrooms */}
+        <mesh position={[0.2, height * 0.3, 0.2]} material={mushroomMaterial} geometry={shroomGeo1} />
+        <mesh position={[-0.2, height * 0.5, -0.1]} material={mushroomMaterial} geometry={shroomGeo1} />
+        <mesh position={[0, height * 0.8, 0.3]} material={mushroomMaterial} geometry={shroomGeo2} />
+      </group>
+    );
+  }
+);
+
+const Crow = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
+  const innerRef = useRef<THREE.Group>(null);
+  
+  useImperativeHandle(ref, () => innerRef.current!);
+
+  useFrame(({ clock }) => {
+    if (innerRef.current) {
+      const time = clock.getElapsedTime();
+      const wingL = innerRef.current.children[1] as THREE.Mesh;
+      const wingR = innerRef.current.children[2] as THREE.Mesh;
+      if (wingL && wingR) {
+        wingL.rotation.x = Math.sin(time * 25) * 0.7;
+        wingR.rotation.x = -Math.sin(time * 25) * 0.7;
+      }
+    }
+  });
+
+  return (
+    <group ref={innerRef} position={[x, y, 0]}>
+      {/* Body */}
+      <mesh position={[0, 0, 0]} castShadow receiveShadow material={crowMaterial} geometry={crowBodyGeo} />
+      {/* Wing L */}
+      <mesh position={[0, 0.1, 0.3]} castShadow material={crowMaterial} geometry={crowWingGeo} />
+      {/* Wing R */}
+      <mesh position={[0, 0.1, -0.3]} castShadow material={crowMaterial} geometry={crowWingGeo} />
+      {/* Head */}
+      <mesh position={[-0.4, 0.2, 0]} castShadow receiveShadow material={crowMaterial} geometry={crowHeadGeo} />
+      {/* Beak */}
+      <mesh position={[-0.7, 0.1, 0]} castShadow receiveShadow material={crowBeakMaterial} geometry={crowBeakGeo} />
+    </group>
+  );
+});
+
+const CrocodileObstacle = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => {
+  const innerRef = useRef<THREE.Group>(null);
+  const jawRef = useRef<THREE.Group>(null);
+  const tailRef = useRef<THREE.Group>(null);
+  
+  const state = useRef({
+     phase: 'waiting',
+     timer: 0
+  });
+
+  const zPos = useRef(-4);
+
+  useImperativeHandle(ref, () => innerRef.current!);
+  
+  useFrame(({ clock }, delta) => {
+    if (innerRef.current) {
+       const time = clock.getElapsedTime();
+       
+       if (state.current.phase !== 'waiting') {
+           state.current.timer += delta;
+       }
+       
+       if (state.current.phase === 'waiting') {
+           // distance to player
+           if (innerRef.current.position.x < 10 && innerRef.current.position.x > 0) {
+               state.current.phase = 'attacking';
+               state.current.timer = 0;
+           }
+           zPos.current = THREE.MathUtils.lerp(zPos.current, -4, 0.05);
+       } else if (state.current.phase === 'attacking') {
+           zPos.current = THREE.MathUtils.lerp(zPos.current, 0, 0.2); // lunge forward fast
+           if (innerRef.current.position.x < -2) { // retreat after passing player
+               state.current.phase = 'retreating';
+               state.current.timer = 0;
+           }
+       } else if (state.current.phase === 'retreating') {
+           zPos.current = THREE.MathUtils.lerp(zPos.current, -4, 0.05); // retreat slowly
+           if (state.current.timer > 1.0) {
+               state.current.phase = 'waiting';
+               state.current.timer = 0;
+           }
+       }
+       innerRef.current.position.y = Math.sin(time * 2) * 0.1 - 0.2;
+       innerRef.current.position.z = zPos.current;
+       
+       if (tailRef.current) {
+           tailRef.current.rotation.y = Math.sin(time * (state.current.phase === 'attacking' ? 15 : 3)) * 0.15;
+       }
+       
+       if (jawRef.current) {
+           if (state.current.phase === 'attacking' && zPos.current > -1) {
+               // Biting animation only when close
+               jawRef.current.rotation.z = Math.abs(Math.sin(time * 15)) * 0.4;
+           } else {
+               jawRef.current.rotation.z = 0;
+           }
+       }
+    }
+  });
+
+  return (
+    <group ref={innerRef} position={[x, -0.2, -4]} rotation={[0, Math.PI / 2, 0]} scale={1.8}>
+      {/* Invisible Hitbox matching the model size */}
+      <mesh position={[-0.7, 0.25, 0]} visible={false} geometry={crocHitboxGeo} />
+      
+      <mesh position={[0, 0.4, 0]} castShadow material={crocMaterial} geometry={crocBodyGeo} />
+      {/* Spikes on back */}
+      <mesh position={[0, 0.7, 0]} castShadow material={crocSpikeMaterial} geometry={crocSpikeGeo1} />
+      <mesh position={[0.8, 0.6, 0]} castShadow material={crocSpikeMaterial} geometry={crocSpikeGeo2} />
+      <mesh position={[-0.8, 0.6, 0]} castShadow material={crocSpikeMaterial} geometry={crocSpikeGeo2} />
+
+      <mesh position={[0.5, 0.7, 0]} castShadow material={crocMaterial} geometry={crocBumpGeo} />
+      <mesh position={[-0.5, 0.7, 0]} castShadow material={crocMaterial} geometry={crocBumpGeo} />
+      
+      <group position={[1.5, 0.3, 0]} ref={tailRef}>
+          <mesh position={[0.75, 0, 0]} castShadow material={crocMaterial} geometry={crocTailGeo} />
+      </group>
+
+      <mesh position={[-2.0, 0.45, 0]} castShadow material={crocMaterial} geometry={crocHeadGeo} />
+      <mesh position={[-3.0, 0.45, 0]} castShadow material={crocMaterial} geometry={crocSnoutGeo} />
+      
+      <group position={[-2.5, 0.35, 0]} ref={jawRef}>
+          <mesh position={[-0.5, -0.1, 0]} castShadow material={crocMaterial} geometry={crocBottomJawGeo} />
+      </group>
+
+      <mesh position={[-1.7, 0.7, 0.3]} material={crocEyeMaterial} geometry={crocEyeGeo} />
+      <mesh position={[-1.7, 0.7, -0.3]} material={crocEyeMaterial} geometry={crocEyeGeo} />
+      <mesh position={[-1.75, 0.7, 0.4]} material={blackEyeMaterial} geometry={crocPupilGeo} />
+      <mesh position={[-1.75, 0.7, -0.4]} material={blackEyeMaterial} geometry={crocPupilGeo} />
+    </group>
+  );
+});
+
+const PuddleObstacle = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => {
+  const hitboxRef = useRef<THREE.Group>(null);
+  const visualRef = useRef<THREE.Group>(null);
+  
+  useImperativeHandle(ref, () => hitboxRef.current!);
+
+  useFrame(() => {
+    if (hitboxRef.current && visualRef.current) {
+       visualRef.current.position.x = hitboxRef.current.position.x;
+    }
+  });
+  
+  return (
+    <>
+      <group ref={hitboxRef} position={[x, 0, 0]}>
+         <mesh position={[0, 1.5, 0]} visible={false} geometry={puddleHitboxGeo} />
+      </group>
+      
+      <group ref={visualRef} position={[x, -0.49, 0]}>
+         <mesh receiveShadow material={waterMaterial} geometry={puddleCylinderGeo} />
+      </group>
+    </>
+  );
+});
+
+const PowerupBox = forwardRef<THREE.Group, { x: number; y: number; type?: PowerupType }>(({ x, y, type }, ref) => {
+  const innerRef = useRef<THREE.Group>(null);
+  
+  useImperativeHandle(ref, () => innerRef.current!);
+
+  useFrame(({ clock }) => {
+    if (innerRef.current) {
+      const time = clock.getElapsedTime();
+      innerRef.current.rotation.y = time * 2;
+      innerRef.current.position.y = y + Math.sin(time * 5) * 0.2;
+    }
+  });
+
+  const isLife = type === 'life';
+  const color = isLife ? "#ef4444" : "#fbbf24";
+  const powerupMaterial = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.5, roughness: 0.2, metalness: 0.8 });
+
+  return (
+    <group ref={innerRef} position={[x, y, 0]}>
+      <mesh castShadow receiveShadow material={powerupMaterial} geometry={powerupBoxGeo} />
+      {isLife ? (
+        <group position={[0, 0, 0.51]}>
+           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupHorizontalBarGeo} />
+           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupVerticalBarGeo} />
+        </group>
+      ) : (
+        <group position={[0, 0, 0.51]}>
+           <mesh position={[0, 0.2, 0]} material={powerupTextMaterial} geometry={powerupQ1Geo} />
+           <mesh position={[0.2, 0.1, 0]} material={powerupTextMaterial} geometry={powerupQ2Geo} />
+           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupQ3Geo} />
+           <mesh position={[0, -0.15, 0]} material={powerupTextMaterial} geometry={powerupQ4Geo} />
+        </group>
+      )}
+      {isLife ? (
+        <group position={[0, 0, -0.51]} rotation={[0, Math.PI, 0]}>
+           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupHorizontalBarGeo} />
+           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupVerticalBarGeo} />
+        </group>
+      ) : (
+        <group position={[0, 0, -0.51]} rotation={[0, Math.PI, 0]}>
+           <mesh position={[0, 0.2, 0]} material={powerupTextMaterial} geometry={powerupQ1Geo} />
+           <mesh position={[0.2, 0.1, 0]} material={powerupTextMaterial} geometry={powerupQ2Geo} />
+           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupQ3Geo} />
+           <mesh position={[0, -0.15, 0]} material={powerupTextMaterial} geometry={powerupQ4Geo} />
+        </group>
+      )}
+    </group>
+  );
+});
+
+export const SwampObstacles = forwardRef<ObstacleData[]>((props, ref) => {
+  const { status, speed, gameId, difficulty, isTransitioning } = useGameStore();
+  const [obstacles, setObstacles] = useState<ObstacleData[]>([]);
+  const nextSpawnX = useRef(SPAWN_DISTANCE);
+  const idCounter = useRef(0);
+
+  useImperativeHandle(ref, () => obstacles, [obstacles]);
+
+  const generateObstacle = (x: number): ObstacleData => {
+    const rand = Math.random();
+    let type: ObstacleType = 'stump-low'; // Will use DeadTree (low)
+    let y = 0;
+    let powerupType: PowerupType | undefined;
+    
+    let lifeChance = 0;
+    if (difficulty === 'easy') lifeChance = 0.03;
+    if (difficulty === 'medium') lifeChance = 0.01;
+
+    let powerupChance = difficulty === 'hard' ? 0.01 : 0.03;
+
+    if (rand < lifeChance) {
+      type = 'powerup';
+      y = Math.random() > 0.5 ? 1.0 : 2.5;
+      powerupType = 'life';
+    } else if (rand < lifeChance + powerupChance) {
+      type = 'powerup';
+      y = Math.random() > 0.5 ? 1.0 : 2.5;
+      const powerups: PowerupType[] = ['wings', 'super', 'ghost', 'jaw', 'earth'];
+      powerupType = powerups[Math.floor(Math.random() * powerups.length)];
+    } else {
+      const score = useGameStore.getState().score;
+      const isBirdEligible = speed > 14 || score > 1500;
+      const birdThreshold = Math.max(0.55, 0.7 - (score / 60000));
+      
+      if (isBirdEligible && rand > birdThreshold) {
+        type = 'bird'; // Crow
+        const birdHeights = [1.0, 1.8, 2.6];
+        y = birdHeights[Math.floor(Math.random() * birdHeights.length)];
+      } else if (rand > 0.45) {
+        type = 'croc'; // Crocodile
+      } else {
+        type = 'stump-high'; // DeadTree (high)
+      }
+    }
+
+    return {
+      id: idCounter.current++,
+      type,
+      x,
+      y,
+      powerupType,
+      ref: { current: null }
+    };
+  };
+
+  useEffect(() => {
+    if (status === 'playing') {
+       const initialObstacles = [
+         generateObstacle(25),
+         generateObstacle(40),
+       ];
+       setObstacles(initialObstacles);
+       if (ref && 'current' in ref) {
+         (ref as React.MutableRefObject<ObstacleData[]>).current = initialObstacles;
+       }
+       nextSpawnX.current = 55;
+    }
+  }, [gameId]);
+
+  useEffect(() => {
+    if (status === 'menu') {
+      setObstacles([]);
+      nextSpawnX.current = SPAWN_DISTANCE;
+    }
+  }, [status]);
+
+  useFrame((_, delta) => {
+    if (status !== 'playing') return;
+
+    const moveDistance = useGameStore.getState().getCurrentSpeed() * delta;
+    
+    // 1. Mutate positions of active obstacles directly
+    obstacles.forEach(obs => {
+      obs.x -= moveDistance;
+      if (obs.ref.current) {
+        obs.ref.current.position.x = obs.x;
+      }
+    });
+
+    nextSpawnX.current -= moveDistance;
+
+    // 2. Check if we need to remove off-screen or spawn new ones (which requires state change)
+    const hasOffscreen = obstacles.some(obs => obs.x <= DESPAWN_DISTANCE);
+    const shouldSpawn = nextSpawnX.current < SPAWN_DISTANCE && !isTransitioning;
+
+    if (hasOffscreen || shouldSpawn) {
+      setObstacles(prev => {
+        let nextObstacles = prev.filter(obs => obs.x > DESPAWN_DISTANCE);
+        
+        if (shouldSpawn) {
+          const score = useGameStore.getState().score;
+          // Gap narrows down from 1.0 to 0.55 as score reaches 20,000 pts
+          const gapMultiplier = Math.max(0.55, 1.0 - (score / 45000));
+          
+          const minGap = ((useGameStore.getState().getCurrentSpeed() * 1.1) + 6) * gapMultiplier;
+          const gap = minGap + Math.random() * (useGameStore.getState().getCurrentSpeed() * 0.8) * gapMultiplier;
+          const newObsX = SPAWN_DISTANCE + gap;
+          
+          nextObstacles.push(generateObstacle(newObsX));
+          nextSpawnX.current = newObsX;
+        }
+
+        // Sync ref with local state
+        if (ref && 'current' in ref) {
+          (ref as React.MutableRefObject<ObstacleData[]>).current = nextObstacles;
+        }
+        return nextObstacles;
+      });
+    }
+  });
+
+  return (
+    <group>
+      {obstacles.map(obs => {
+        if (obs.type === 'stump-low') {
+          return <DeadTree key={obs.id} ref={obs.ref as any} x={obs.x} scale={0.8} />;
+        }
+        if (obs.type === 'stump-high') {
+           return <DeadTree key={obs.id} ref={obs.ref as any} x={obs.x} scale={1.2} isHigh={true} />;
+        }
+        if (obs.type === 'puddle') {
+           return <PuddleObstacle key={obs.id} ref={obs.ref as any} x={obs.x} />;
+        }
+        if (obs.type === 'croc') {
+           return <CrocodileObstacle key={obs.id} ref={obs.ref as any} x={obs.x} />;
+        }
+        if (obs.type === 'bird') {
+          return <Crow key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} />;
+        }
+        if (obs.type === 'powerup') {
+          return <PowerupBox key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} type={obs.powerupType} />;
+        }
+        return null;
+      })}
+    </group>
+  );
+});

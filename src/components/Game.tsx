@@ -1,0 +1,293 @@
+import { useFrame } from '@react-three/fiber';
+import { useRef } from 'react';
+import { useGameStore } from '../store/gameStore';
+import { Dino } from './Dino';
+import * as THREE from 'three';
+import { playHitSound, playScoreSound, playLifeSound, playGameOverSound } from '../utils/audio';
+import { VFXRenderer, spawnParticles } from './VFXRenderer';
+import { Text, OrbitControls } from '@react-three/drei';
+import { SCENARIOS } from '../scenarios';
+import { ObstacleData } from '../scenarios/types';
+
+function FloatingTextRenderer() {
+  const texts = useGameStore(state => state.floatingTexts);
+  const removeFloatingText = useGameStore(state => state.removeFloatingText);
+  const { speed, status } = useGameStore();
+
+  useFrame((state, delta) => {
+    if (status !== 'playing') return;
+    const now = performance.now();
+    texts.forEach(t => {
+      // Move backwards with world
+      t.x -= useGameStore.getState().getCurrentSpeed() * delta;
+      // Move up slightly
+      t.y += delta * 2;
+      
+      if (now - t.createdAt > 1000) {
+        removeFloatingText(t.id);
+      }
+    });
+  });
+
+  return (
+    <>
+      {/* Hidden text to preload font */}
+      <Text
+        visible={false}
+        font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff"
+      >
+        Preload
+      </Text>
+      {texts.map(t => (
+        <Text
+          key={t.id}
+          position={[t.x, t.y, t.z]}
+          color={t.color}
+          fontSize={0.8}
+          font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff"
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.05}
+          outlineColor="#000000"
+        >
+          {t.text}
+        </Text>
+      ))}
+    </>
+  );
+}
+
+
+function CameraController() {
+   const activePowerup = useGameStore(s => s.activePowerup);
+   useFrame((state) => {
+      const targetFov = activePowerup === 'super' ? 50 : 35;
+      (state.camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((state.camera as THREE.PerspectiveCamera).fov, targetFov, 0.05);
+      state.camera.updateProjectionMatrix();
+   });
+   return null;
+}
+
+function PowerupLight() {
+    const activePowerup = useGameStore(s => s.activePowerup);
+    const color = activePowerup === 'super' ? '#fde047' : 
+                  activePowerup === 'jaw' ? '#ef4444' : 
+                  activePowerup === 'ghost' ? '#a855f7' :
+                  activePowerup === 'wings' ? '#93c5fd' :
+                  activePowerup === 'earth' ? '#d97706' : '#ffffff';
+    const intensity = activePowerup !== 'none' ? 1.5 : 0;
+    
+    return <pointLight position={[2, 3, 0]} color={color} intensity={intensity} distance={15} />;
+}
+
+export function Game() {
+  const { status, speed, incrementScore, increaseSpeed, endGame, cameraMode, scenario, devMode } = useGameStore();
+  const dinoRef = useRef<THREE.Group>(null);
+  const dinoBox = useRef(new THREE.Box3());
+  const obstaclesRef = useRef<ObstacleData[]>([]);
+  const obstacleBox = useRef(new THREE.Box3());
+  const lookAtTarget = useRef(new THREE.Vector3(5, 3.5, 0));
+
+  // Camera settings
+  useFrame((state, delta) => {
+    if (devMode) return;
+    const isMobile = window.innerWidth < 768;
+    const mobileOffset = isMobile ? -5 : 0; // Move camera closer on mobile
+
+    let idealPos = new THREE.Vector3(6, 4.5, 22 + mobileOffset);
+    let targetLook = new THREE.Vector3(6, 3.5, 0);
+
+    if (cameraMode === '2D') {
+      idealPos.set(6, 4.5, 22 + mobileOffset);
+      targetLook.set(6, 3.5, 0);
+    } else if (cameraMode === '2.5D') {
+      idealPos.set(0, 5, 16 + mobileOffset * 0.8);
+      targetLook.set(8, 2, 0);
+    }
+
+    const shake = useGameStore.getState().cameraShake;
+    if (shake > 0) {
+      idealPos.x += (Math.random() - 0.5) * shake;
+      idealPos.y += (Math.random() - 0.5) * shake;
+      idealPos.z += (Math.random() - 0.5) * shake;
+      useGameStore.getState().updateCameraShake();
+    }
+
+    state.camera.position.lerp(idealPos, 0.1);
+    lookAtTarget.current.lerp(targetLook, 0.1);
+    state.camera.lookAt(lookAtTarget.current);
+
+    if (status !== 'playing') return;
+
+    useGameStore.getState().addGameTime(delta);
+
+    // Update score: 100 points per second at base speed (10)
+    const points = 100 * (useGameStore.getState().getCurrentSpeed() / 10) * delta;
+    const oldScore = useGameStore.getState().score;
+    incrementScore(points);
+    const newScore = oldScore + points;
+
+    // Play milestone sound every 1000 points
+    if (Math.floor(newScore / 1000) > Math.floor(oldScore / 1000) && newScore > 100) {
+      playScoreSound();
+    }
+    
+    const { activePowerup, activatePowerup } = useGameStore.getState();
+
+    // Collision Detection (Grace period of 10 points to avoid instant death on restart)
+    if (dinoRef.current && newScore > 10) {
+      dinoBox.current.setFromObject(dinoRef.current);
+      
+      // Make dino hitbox slightly smaller to be forgiving
+      dinoBox.current.expandByScalar(0);
+
+      // If Super T-rex, expand hitbox and don't die on obstacle
+      if (activePowerup === 'super') {
+        dinoBox.current.expandByScalar(1.5);
+      }
+
+      for (let i = 0; i < obstaclesRef.current.length; i++) {
+        const obs = obstaclesRef.current[i];
+        if (obs.ref.current) {
+          obstacleBox.current.setFromObject(obs.ref.current);
+          obstacleBox.current.expandByScalar(-0.2);
+          
+          if (dinoBox.current.intersectsBox(obstacleBox.current)) {
+            if (obs.type === 'powerup' && obs.powerupType) {
+              spawnParticles('sparkle', [obs.x, obs.ref.current.position.y, 0], 20);
+              
+              if (obs.powerupType === 'life') {
+                playLifeSound();
+                useGameStore.getState().gainLife();
+                useGameStore.getState().addFloatingText('+1 VIDA', obs.x, obs.ref.current.position.y + 1, 0, '#ef4444');
+              } else {
+                playScoreSound();
+                activatePowerup(obs.powerupType, 12); // 12 seconds duration
+                useGameStore.getState().addFloatingText(obs.powerupType.toUpperCase() + '!', obs.x, obs.ref.current.position.y + 1, 0, '#fbbf24');
+              }
+              // Move powerup out of view immediately to simulate despawn
+              obs.x = -100;
+              obs.ref.current.position.y = -100;
+              continue;
+            }
+
+            if (activePowerup === 'super' || activePowerup === 'ghost') {
+              // Destroy obstacle (or phase through)
+              if (activePowerup === 'ghost') {
+                useGameStore.getState().deactivatePowerup();
+              } else {
+                // If super, explode the obstacle
+                playScoreSound();
+                spawnParticles('explosion', [obs.x, obs.ref.current.position.y, 0], 30);
+                useGameStore.getState().triggerCameraShake(0.5);
+                useGameStore.getState().addFloatingText('+100 Pts', obs.x, obs.ref.current.position.y + 1, 0, '#ffffff');
+                incrementScore(100); useGameStore.getState().triggerCameraShake(0.3);
+              }
+              // Move obstacle out of view
+              obs.x = -100;
+              obs.ref.current.position.y = -100;
+              continue;
+            }
+
+            if (activePowerup === 'jaw' && obs.type !== 'powerup') {
+              // Eat bird
+              playScoreSound();
+              spawnParticles('explosion', [obs.x, obs.ref.current.position.y, 0], 20, '#ef4444');
+              useGameStore.getState().addFloatingText('+100 Pts', obs.x, obs.ref.current.position.y + 1, 0, '#ffffff');
+              incrementScore(100); useGameStore.getState().triggerCameraShake(0.3);
+              
+              obs.x = -100;
+              obs.ref.current.position.y = -100;
+              continue;
+            }
+
+            // Check if currently invincible
+            if (performance.now() < useGameStore.getState().invincibleUntil) {
+              continue;
+            }
+
+            if (obs.type === 'skull') {
+               playHitSound();
+               spawnParticles('dust', [obs.x, obs.ref.current.position.y, 0], 30, '#f8fafc');
+               useGameStore.getState().addFloatingText('PESADO!', obs.x, obs.ref.current.position.y + 1, 0, '#94a3b8');
+               useGameStore.getState().setHeavyJumpUntil(performance.now() + 1000); // 1 second heavy jump
+               obs.x = -100;
+               obs.ref.current.position.y = -100;
+               continue;
+            }
+
+            if (obs.type === 'snowman') {
+               playHitSound();
+               spawnParticles('dust', [obs.x, obs.ref.current.position.y, 0], 30, '#f8fafc');
+               useGameStore.getState().addFloatingText('FRACO!', obs.x, obs.ref.current.position.y + 1, 0, '#60a5fa');
+               useGameStore.getState().setWeakJumpUntil(performance.now() + 2500); // 2.5 seconds weak jump
+               obs.x = -100;
+               obs.ref.current.position.y = -100;
+               continue;
+            }
+
+            
+            if (obs.type === 'puddle') {
+               spawnParticles('dust', [obs.x, obs.ref.current.position.y, 0], 30, '#0ea5e9');
+               useGameStore.getState().addFloatingText('LENTO!', obs.x, obs.ref.current.position.y + 1, 0, '#0ea5e9');
+               useGameStore.getState().setSlowUntil(performance.now() + 1500); // 1.5 seconds slow
+               obs.x = -100;
+               obs.ref.current.position.y = -100;
+               continue;
+            }
+            if (obs.type === 'firebox') {
+               playScoreSound();
+               spawnParticles('sparkle', [obs.x, obs.ref.current.position.y, 0], 20, '#ef4444');
+               useGameStore.getState().addFloatingText('QUENTE!', obs.x, obs.ref.current.position.y + 1, 0, '#ef4444');
+               useGameStore.getState().resetColdTimer();
+               obs.x = -100;
+               obs.ref.current.position.y = -100;
+               continue;
+            }
+
+            // Collision!
+            useGameStore.getState().triggerCameraShake(1.0);
+            spawnParticles('explosion', [obs.x, obs.ref.current.position.y, 0], 40, useGameStore.getState().dinoColor);
+            obs.x = -100;
+            obs.ref.current.position.y = -100;
+            useGameStore.getState().setInvincibleUntil(performance.now() + 1500); // 1.5 seconds of invincibility
+            useGameStore.getState().loseLife();
+            
+            if (useGameStore.getState().lives <= 0) {
+              playGameOverSound();
+              endGame();
+              break;
+            } else {
+              playHitSound();
+            }
+          }
+        }
+      }
+    }
+  });
+
+  return (
+    <group>
+      <VFXRenderer />
+      <FloatingTextRenderer />
+      <CameraController />
+      <PowerupLight />
+      <Dino ref={dinoRef} />
+      {(() => {
+        const activeScenario = SCENARIOS[scenario];
+        const Ground = activeScenario.GroundComponent;
+        const Obstacles = activeScenario.ObstaclesComponent;
+        const Env = activeScenario.EnvironmentComponent;
+        return (
+          <>
+            <Obstacles ref={obstaclesRef} />
+            <Ground />
+            {Env && <Env />}
+          </>
+        );
+      })()}
+      {devMode && <OrbitControls makeDefault />}
+    </group>
+
+  );
+}

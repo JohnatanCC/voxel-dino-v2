@@ -1,0 +1,6 @@
+{
+  "name": "Voxel T-Rex 3D",
+  "description": "A 3D voxel-style endless runner inspired by the classic T-Rex game, built with React Three Fiber.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
