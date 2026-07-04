@@ -250,7 +250,7 @@ export function UI() {
                 VOXEL DINO
               </h1>
               <p className="text-white mt-0 sm:mt-2 game-font text-sm sm:text-xl opacity-80 tracking-widest drop-shadow-md menu-subtitle">
-                v0.4.0
+                v0.5.1
               </p>
             </div>
 
@@ -303,6 +303,31 @@ export function UI() {
                 </div>
                 <button 
                    onClick={() => setCameraMode(cameraMode === '2D' ? '2.5D' : '2D')}
+                   className="text-white hover:text-amber-300 transition-colors drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] menu-selector-btn"
+                ><ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" /></button>
+              </div>
+
+              {/* Difficulty Selector */}
+              <div className="flex items-center gap-4">
+                 <button 
+                   onClick={() => {
+                      const opts = ['easy', 'medium', 'hard'];
+                      const idx = opts.indexOf(difficulty);
+                      const prev = opts[(idx - 1 + opts.length) % opts.length];
+                      setDifficulty(prev as any);
+                   }}
+                   className="text-white hover:text-amber-300 transition-colors drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] menu-selector-btn"
+                ><ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" /></button>
+                <div className="game-font text-white text-base sm:text-xl uppercase tracking-widest w-24 sm:w-32 text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] menu-selector-text">
+                   {difficulty}
+                </div>
+                <button 
+                   onClick={() => {
+                      const opts = ['easy', 'medium', 'hard'];
+                      const idx = opts.indexOf(difficulty);
+                      const next = opts[(idx + 1) % opts.length];
+                      setDifficulty(next as any);
+                   }}
                    className="text-white hover:text-amber-300 transition-colors drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] menu-selector-btn"
                 ><ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" /></button>
               </div>
@@ -375,34 +400,6 @@ export function UI() {
               <h2 className="text-3xl game-font text-white mb-8 tracking-tighter">CONFIGURAÇÕES</h2>
               
               <div className="flex flex-col gap-8 w-full">
-                {/* Difficulty */}
-                <div className="flex flex-col items-center gap-2">
-                  <span className="game-font text-white/70 text-sm tracking-widest uppercase">Dificuldade</span>
-                  <div className="flex items-center gap-4">
-                    <button
-                        onClick={() => {
-                          const opts = ['easy', 'medium', 'hard'];
-                          const idx = opts.indexOf(useGameStore.getState().difficulty);
-                          const prev = opts[(idx - 1 + opts.length) % opts.length];
-                          useGameStore.getState().setDifficulty(prev as 'easy' | 'medium' | 'hard');
-                        }}
-                      className="text-white hover:text-amber-300 transition-colors"
-                    ><ChevronLeft className="w-8 h-8" /></button>
-                    <div className="game-font text-white text-xl uppercase tracking-widest w-24 text-center">
-                      {useGameStore.getState().difficulty}
-                    </div>
-                    <button
-                        onClick={() => {
-                          const opts = ['easy', 'medium', 'hard'];
-                          const idx = opts.indexOf(useGameStore.getState().difficulty);
-                          const next = opts[(idx + 1) % opts.length];
-                          useGameStore.getState().setDifficulty(next as 'easy' | 'medium' | 'hard');
-                        }}
-                      className="text-white hover:text-amber-300 transition-colors"
-                    ><ChevronRight className="w-8 h-8" /></button>
-                  </div>
-                </div>
-
                 {/* Graphics */}
                 <div className="flex flex-col items-center gap-2">
                   <span className="game-font text-white/70 text-sm tracking-widest uppercase">Gráficos</span>
@@ -532,7 +529,7 @@ export function UI() {
 
       {/* Invisible Touch Areas for Mobile Controls */}
       {status === 'playing' && !devMode && (
-        <div className="absolute inset-0 z-0 flex md:hidden pointer-events-auto">
+        <div className="absolute inset-0 z-0 flex pointer-events-auto">
           <div 
             className="flex-1 h-full touch-none"
             onPointerDown={(e) => { e.preventDefault(); window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' })); }}

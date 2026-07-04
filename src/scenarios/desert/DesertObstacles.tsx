@@ -240,7 +240,7 @@ export const DesertObstacles = forwardRef<ObstacleData[]>((props, ref) => {
       if (isBirdEligible && rand > birdThreshold) {
         type = 'bird';
         // Bird can be low, middle or high
-        const birdHeights = [1.0, 1.8, 2.6];
+        const birdHeights = [1.0, 1.5, 2.6];
         y = birdHeights[Math.floor(Math.random() * birdHeights.length)];
       } else if (rand > 0.5) {
         type = 'cactus-large';
