@@ -44,6 +44,12 @@ interface GameState {
   weakJumpUntil: number;
   slowUntil: number;
   setSlowUntil: (time: number) => void; // For snow scenario snowman obstacle
+  mummySlowUntil: number;
+  originalFogDensity: FogDensity | null;
+  setMummySlowUntil: (time: number) => void;
+  setOriginalFogDensity: (density: FogDensity | null) => void;
+  eatingUntil: number;
+  setEatingUntil: (time: number) => void;
   startGame: () => void;
   endGame: () => void;
   resetGame: () => void;
@@ -100,7 +106,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   heavyJumpUntil: 0,
   weakJumpUntil: 0,
   slowUntil: 0,
-  coldTimer: 45,
+  mummySlowUntil: 0,
+  originalFogDensity: null,
+  setMummySlowUntil: (time) => set({ mummySlowUntil: time }),
+  setOriginalFogDensity: (density) => set({ originalFogDensity: density }),
+  eatingUntil: 0,
+  setEatingUntil: (time) => set({ eatingUntil: time }),
+  coldTimer: 30,
   isSandstorm: true,
   cameraShake: 0,
   floatingTexts: [],
@@ -117,8 +129,34 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (state.difficulty === 'easy') initialSpeed = 7.5;
     if (state.difficulty === 'hard') initialSpeed = 12;
     
-    return { status: 'playing', score: 0, speed: initialSpeed, gameId: state.gameId + 1, gameTime: 0, activePowerup: state.activePowerup, isSandstorm: state.scenario === 'desert', lives: startingLives, invincibleUntil: 0, heavyJumpUntil: 0, weakJumpUntil: 0,
-  slowUntil: 0, coldTimer: 45, floatingTexts: [] };
+    const updates: Partial<GameState> = { 
+      status: 'playing', 
+      score: 0, 
+      speed: initialSpeed, 
+      gameId: state.gameId + 1, 
+      gameTime: 0, 
+      activePowerup: state.activePowerup, 
+      isSandstorm: state.scenario === 'desert', 
+      lives: startingLives, 
+      invincibleUntil: 0, 
+      heavyJumpUntil: 0, 
+      weakJumpUntil: 0,
+      slowUntil: 0, 
+      coldTimer: 30, 
+      floatingTexts: [], 
+      mummySlowUntil: 0, 
+      originalFogDensity: null, 
+      eatingUntil: 0,
+      isTransitioning: false,
+      transitionStartTime: 0,
+      pendingScenario: null
+    };
+
+    if (state.mummySlowUntil > 0 && state.originalFogDensity) {
+      updates.fogSettings = { ...state.fogSettings, [state.scenario]: state.originalFogDensity };
+    }
+
+    return updates;
   }),
   endGame: () => set((state) => {
     const newHighScore = Math.max(Math.floor(state.score), state.highScore);
@@ -128,7 +166,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   getCurrentSpeed: () => {
     const state = get();
     let s = state.speed;
-    if (performance.now() < state.slowUntil) s *= 0.5;
+    if (performance.now() < state.mummySlowUntil) s /= 1.5;
+    else if (performance.now() < state.slowUntil) s *= 0.5;
+    
+    if (state.scenario === 'snow' && state.coldTimer <= 0) {
+      s *= 0.8;
+    }
     return s;
   },
   resetGame: () => set((state) => {
@@ -136,7 +179,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (state.difficulty === 'easy') initialSpeed = 7.5;
     if (state.difficulty === 'hard') initialSpeed = 12;
     return { status: 'menu', score: 0, speed: initialSpeed, gameTime: 0, activePowerup: state.activePowerup, isSandstorm: true, floatingTexts: [], isTransitioning: false, transitionStartTime: 0, pendingScenario: null,
-  fogSettings: { desert: 'minimum', forest: 'minimum', swamp: 'low', snow: 'minimum' }, coldTimer: 45 };
+  fogSettings: { desert: 'minimum', forest: 'minimum', swamp: 'low', snow: 'minimum' }, coldTimer: 30, mummySlowUntil: 0, originalFogDensity: null, eatingUntil: 0 };
   }),
   togglePause: () => set((state) => {
     if (state.status === 'playing') return { status: 'paused' };
@@ -197,7 +240,23 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (newLives <= 0) {
       const newHighScore = Math.max(Math.floor(state.score), state.highScore);
       localStorage.setItem('trex-highscore', newHighScore.toString());
-      return { status: 'gameover', highScore: newHighScore, score: Math.floor(state.score), activePowerup: 'none', lives: 0 };
+      
+      const updates: Partial<GameState> = { 
+        status: 'gameover', 
+        highScore: newHighScore, 
+        score: Math.floor(state.score), 
+        activePowerup: 'none', 
+        lives: 0,
+        mummySlowUntil: 0,
+        originalFogDensity: null,
+        eatingUntil: 0
+      };
+
+      if (state.mummySlowUntil > 0 && state.originalFogDensity) {
+        updates.fogSettings = { ...state.fogSettings, [state.scenario]: state.originalFogDensity };
+      }
+
+      return updates;
     }
     return { lives: newLives };
   }),
@@ -211,39 +270,44 @@ export const useGameStore = create<GameState>((set, get) => ({
   setHeavyJumpUntil: (time) => set({ heavyJumpUntil: time }),
   setWeakJumpUntil: (time) => set({ weakJumpUntil: time }),
   setSlowUntil: (time) => set({ slowUntil: time }),
-  resetColdTimer: () => set({ coldTimer: 45 }),
+  resetColdTimer: () => set((state) => {
+    const updates: Partial<GameState> = { coldTimer: 30 };
+    if (state.scenario === 'snow' && state.coldTimer <= 0 && state.originalFogDensity) {
+      updates.fogSettings = { ...state.fogSettings, snow: state.originalFogDensity };
+      updates.originalFogDensity = null;
+    }
+    return updates;
+  }),
   setDinoColor: (color) => set({ dinoColor: color }),
   setDevMode: (active) => set({ devMode: active }),
   addGameTime: (delta) => set((state) => {
     const newTime = state.gameTime + delta;
     const updates: Partial<GameState> = { gameTime: newTime };
     
+    if (state.mummySlowUntil > 0 && performance.now() >= state.mummySlowUntil) {
+      if (state.originalFogDensity) {
+        updates.fogSettings = { ...state.fogSettings, [state.scenario]: state.originalFogDensity };
+      }
+      updates.mummySlowUntil = 0;
+      updates.originalFogDensity = null;
+    }
+    
     if (state.activePowerup !== 'none' && newTime > state.powerupEndTime) {
       updates.activePowerup = 'none';
     }
     
     if (state.scenario === 'snow' && state.status === 'playing') {
-      const newColdTimer = state.coldTimer - delta;
-      if (newColdTimer <= 0) {
-        updates.coldTimer = 45;
-        // Take damage
-        const newLives = state.lives - 1;
-        if (newLives <= 0) {
-          const newHighScore = Math.max(Math.floor(state.score), state.highScore);
-          localStorage.setItem('trex-highscore', newHighScore.toString());
-          updates.status = 'gameover';
-          updates.highScore = newHighScore;
-          updates.score = Math.floor(state.score);
-          updates.lives = 0;
-        } else {
-          updates.lives = newLives;
+      const newColdTimer = Math.max(0, state.coldTimer - delta);
+      updates.coldTimer = newColdTimer;
+      if (newColdTimer <= 0 && state.coldTimer > 0) {
+        if (!state.originalFogDensity) {
+          updates.originalFogDensity = state.fogSettings.snow;
         }
+        updates.fogSettings = { ...state.fogSettings, snow: 'high' };
         
         // Add floating text
         const newText: FloatingText = { id: Math.random().toString(36).substr(2, 9), text: 'FROZEN!', x: 0, y: 5, z: 0, color: '#3b82f6', createdAt: performance.now() };
         updates.floatingTexts = [...state.floatingTexts, newText];
-      } else {
-        updates.coldTimer = newColdTimer;
       }
     }
     

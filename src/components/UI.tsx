@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Camera, Settings, X } from 'lucide-react';
-import { playBackgroundMusic, stopBackgroundMusic } from '../utils/audio';
+import { playBackgroundMusic, stopBackgroundMusic, pauseBackgroundMusic } from '../utils/audio';
 
 function PowerupBar() {
   const [progress, setProgress] = useState(100);
@@ -85,6 +85,8 @@ export function UI() {
   useEffect(() => {
     if (status === 'playing') {
       playBackgroundMusic(scenario);
+    } else if (status === 'paused') {
+      pauseBackgroundMusic();
     } else if (status === 'menu' || status === 'gameover') {
       playBackgroundMusic('menu');
     } else {
@@ -130,6 +132,17 @@ export function UI() {
 
   return (
     <div className="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between">
+      {/* Frost Screen Overlay */}
+      {scenario === 'snow' && status === 'playing' && coldTimer < 20 && (
+         <div 
+           className={`absolute inset-0 z-10 pointer-events-none transition-opacity duration-300 ${coldTimer < 8 ? 'animate-pulse' : ''}`}
+           style={{
+             opacity: 1.0 - (coldTimer / 20),
+             boxShadow: 'inset 0 0 50px rgba(186, 230, 253, 0.5), inset 0 0 100px rgba(186, 230, 253, 0.3)',
+             border: coldTimer < 8 ? '4px solid rgba(239, 68, 68, 0.4)' : '4px solid rgba(186, 230, 253, 0.3)',
+           }}
+         />
+      )}
       {/* Landscape Warning for Mobile */}
       {isMobilePortrait && (
         <div className="fixed inset-0 z-50 bg-[#fde047] flex-col items-center justify-center p-8 text-center pointer-events-auto flex">
@@ -226,7 +239,7 @@ export function UI() {
               <div className="w-24 sm:w-32 h-2 bg-slate-800 rounded-full overflow-hidden border border-[#535353]/30">
                 <div 
                   className={`h-full ${coldTimer < 10 ? 'bg-red-500 animate-pulse' : 'bg-blue-400'}`}
-                  style={{ width: `${(coldTimer / 45) * 100}%`, transition: 'width 0.1s linear' }}
+                  style={{ width: `${(coldTimer / 30) * 100}%`, transition: 'width 0.1s linear' }}
                 />
               </div>
             </div>
@@ -250,7 +263,7 @@ export function UI() {
                 VOXEL DINO
               </h1>
               <p className="text-white mt-0 sm:mt-2 game-font text-sm sm:text-xl opacity-80 tracking-widest drop-shadow-md menu-subtitle">
-                v0.5.1
+                v0.6.0
               </p>
             </div>
 
@@ -259,7 +272,7 @@ export function UI() {
               <div className="flex items-center gap-4">
                 <button 
                    onClick={() => {
-                      const opts = ['mixed', 'desert', 'forest', 'swamp'];
+                      const opts = ['mixed', 'desert', 'forest', 'swamp', 'snow'];
                       const current = useGameStore.getState().isMixedMode ? 'mixed' : scenario;
                       const idx = opts.indexOf(current);
                       const prev = opts[(idx - 1 + opts.length) % opts.length];
@@ -277,7 +290,7 @@ export function UI() {
                 </div>
                 <button 
                    onClick={() => {
-                      const opts = ['mixed', 'desert', 'forest', 'swamp'];
+                      const opts = ['mixed', 'desert', 'forest', 'swamp', 'snow'];
                       const current = useGameStore.getState().isMixedMode ? 'mixed' : scenario;
                       const idx = opts.indexOf(current);
                       const next = opts[(idx + 1) % opts.length];

@@ -1,5 +1,5 @@
 import { useFrame } from '@react-three/fiber';
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { Dino } from './Dino';
 import * as THREE from 'three';
@@ -7,7 +7,43 @@ import { playHitSound, playScoreSound, playLifeSound, playGameOverSound } from '
 import { VFXRenderer, spawnParticles } from './VFXRenderer';
 import { Text, OrbitControls } from '@react-three/drei';
 import { SCENARIOS } from '../scenarios';
-import { ObstacleData } from '../scenarios/types';
+import { ObstacleData, DINO_HITBOX_OFFSET, OBSTACLE_HITBOX_OFFSETS } from '../scenarios/types';
+
+interface TransitionProps {
+  scenarioKey: string;
+  children: React.ReactNode;
+}
+
+function ScenarioTransition({ scenarioKey, children }: TransitionProps) {
+  const groupRef = useRef<THREE.Group>(null);
+  const animTime = useRef(0);
+  const duration = 0.6;
+  const status = useGameStore(s => s.status);
+
+  useEffect(() => {
+    animTime.current = 0;
+  }, [scenarioKey]);
+
+  useFrame((_, delta) => {
+    if (!groupRef.current) return;
+    
+    if (status === 'menu' && animTime.current < duration) {
+      animTime.current += delta;
+      const t = Math.min(1, animTime.current / duration);
+      // Spring bounce formula: starts at 0, overshoots to ~1.2, undershoots, and settles at 1.0
+      const s = 1.0 - Math.cos(t * Math.PI * 2.5) * Math.pow(1 - t, 2);
+      groupRef.current.scale.set(s, s, s);
+    } else {
+      groupRef.current.scale.set(1, 1, 1);
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      {children}
+    </group>
+  );
+}
 
 function FloatingTextRenderer() {
   const texts = useGameStore(state => state.floatingTexts);
@@ -139,7 +175,7 @@ export function Game() {
       dinoBox.current.setFromObject(dinoRef.current);
       
       // Make dino hitbox slightly smaller to be forgiving
-      dinoBox.current.expandByScalar(0);
+      dinoBox.current.expandByScalar(DINO_HITBOX_OFFSET);
 
       // If Super T-rex, expand hitbox and don't die on obstacle
       if (activePowerup === 'super') {
@@ -150,7 +186,8 @@ export function Game() {
         const obs = obstaclesRef.current[i];
         if (obs.ref.current) {
           obstacleBox.current.setFromObject(obs.ref.current);
-          obstacleBox.current.expandByScalar(-0.2);
+          const hitboxOffset = OBSTACLE_HITBOX_OFFSETS[obs.type] ?? -0.2;
+          obstacleBox.current.expandByScalar(hitboxOffset);
           
           if (dinoBox.current.intersectsBox(obstacleBox.current)) {
             if (obs.type === 'powerup' && obs.powerupType) {
@@ -201,9 +238,49 @@ export function Game() {
               continue;
             }
 
+            if (obs.type === 'bird') {
+              const state = useGameStore.getState();
+              const isCurrentlyEating = performance.now() < state.eatingUntil;
+              
+              if (!isCurrentlyEating) {
+                // Dino eats the bird!
+                playScoreSound();
+                spawnParticles('explosion', [obs.x, obs.ref.current.position.y, 0], 25, '#ef4444');
+                state.setEatingUntil(performance.now() + 8000); // Eating for 8 seconds
+                state.addFloatingText('NHAC!', obs.x, obs.ref.current.position.y + 1, 0, '#ec4899');
+                
+                incrementScore(50);
+                
+                obs.x = -100;
+                obs.ref.current.position.y = -100;
+                continue;
+              }
+            }
+
             // Check if currently invincible
             if (performance.now() < useGameStore.getState().invincibleUntil) {
               continue;
+            }
+
+            if (obs.type === 'mummy') {
+               playHitSound();
+               spawnParticles('dust', [obs.x, obs.ref.current.position.y, 0], 30, '#fef08a');
+               
+               const state = useGameStore.getState();
+               const currentScenario = state.scenario;
+               const currentFog = state.fogSettings[currentScenario];
+               
+               if (performance.now() >= state.mummySlowUntil) {
+                  state.setOriginalFogDensity(currentFog);
+               }
+               
+               state.setFogDensity(currentScenario, 'high');
+               state.setMummySlowUntil(performance.now() + 4000); // 4 seconds mummy slow
+               state.addFloatingText('MÚMIA! NEBLINA E LENTO', obs.x, obs.ref.current.position.y + 1, 0, '#eab308');
+               
+               obs.x = -100;
+               obs.ref.current.position.y = -100;
+               continue;
             }
 
             if (obs.type === 'skull') {
@@ -279,11 +356,11 @@ export function Game() {
         const Obstacles = activeScenario.ObstaclesComponent;
         const Env = activeScenario.EnvironmentComponent;
         return (
-          <>
+          <ScenarioTransition key={scenario} scenarioKey={scenario}>
             <Obstacles ref={obstaclesRef} />
             <Ground />
             {Env && <Env />}
-          </>
+          </ScenarioTransition>
         );
       })()}
       {devMode && <OrbitControls makeDefault />}

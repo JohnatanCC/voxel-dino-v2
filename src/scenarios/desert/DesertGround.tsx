@@ -125,8 +125,12 @@ export function DesertGround() {
     return texture;
   }, []);
 
-
-  // useEffect removed for mountain color
+  useEffect(() => {
+    return () => {
+      sandTexture.dispose();
+      mountainTexture.dispose();
+    };
+  }, [sandTexture, mountainTexture]);
 
   // Update instanced meshes
   useFrame((_, delta) => {

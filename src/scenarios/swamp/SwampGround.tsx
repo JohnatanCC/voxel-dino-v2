@@ -1,5 +1,5 @@
 import { useFrame } from '@react-three/fiber';
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { useGameStore } from '../../store/gameStore';
 import { MangroveTrees } from '../../components/environment/MangroveTrees';
@@ -129,6 +129,14 @@ export function SwampGround() {
     return data;
   }, []);
 
+  useEffect(() => {
+    return () => {
+      lilyPadTexture.dispose();
+      waterTexture.dispose();
+      fogTexture.dispose();
+    };
+  }, [lilyPadTexture, waterTexture, fogTexture]);
+
   const treeData = useMemo(() => {
     const data = [];
     for (let i = 0; i < TREE_COUNT; i++) {
@@ -183,7 +191,7 @@ export function SwampGround() {
       const dummy = new THREE.Object3D();
       for (let i = 0; i < RAIN_COUNT; i++) {
         const d = rainData[i];
-        d.y -= useGameStore.getState().getCurrentSpeed() * delta;
+        d.y -= d.speed * delta;
         if (d.y < -1) {
           d.y = 20;
           d.x = (Math.random() - 0.5) * 50;
@@ -375,13 +383,13 @@ export function SwampGround() {
       {/* Water Floor */}
       <mesh ref={floorRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow>
         <planeGeometry args={[GROUND_LENGTH * 2, 60]} />
-        <meshStandardMaterial ref={waterMatRef} map={waterTexture} roughness={0.05} metalness={0.5} emissive="#1e3a8a" emissiveIntensity={0.2} color="#ffffff" />
+        <meshStandardMaterial ref={waterMatRef} map={waterTexture} roughness={1.0} metalness={0.0} emissive="#1e3a8a" emissiveIntensity={0.2} color="#ffffff" />
       </mesh>
       
       {/* Distant water */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, -50]}>
         <planeGeometry args={[BACKGROUND_LENGTH * 2, 250]} />
-        <meshStandardMaterial map={waterTexture} roughness={0.05} metalness={0.5} emissive="#1e3a8a" emissiveIntensity={0.2} color="#ffffff" />
+        <meshStandardMaterial map={waterTexture} roughness={1.0} metalness={0.0} emissive="#1e3a8a" emissiveIntensity={0.2} color="#ffffff" />
       </mesh>
       
       {/* Vitoria Regia (Lily Pads) */}

@@ -1,11 +1,9 @@
 import { useFrame } from '@react-three/fiber';
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, createRef } from 'react';
 import * as THREE from 'three';
 import { useGameStore } from '../../store/gameStore';
 import { ObstacleData, ObstacleType, PowerupType } from '../types';
-
-const SPAWN_DISTANCE = 30;
-const DESPAWN_DISTANCE = -10;
+import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition, isBirdEligible } from '../helpers';
 
 // Reusable obstacle geometries
 const cactusMaterial = new THREE.MeshStandardMaterial({ color: '#22c55e', roughness: 0.9 });
@@ -68,31 +66,174 @@ const Cactus = forwardRef<THREE.Group, { x: number; scale: number; numStems?: nu
 );
 
 const boneMaterial = new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.9 });
+const mummyMaterial = new THREE.MeshStandardMaterial({ color: '#facc15', roughness: 0.95 }); // Yellow mummy color
+const mummyEyeMaterial = new THREE.MeshBasicMaterial({ color: '#fef08a' }); // Glowing yellow eyes
 
-const Skull = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => {
+const Skeleton = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => {
+  const innerRef = useRef<THREE.Group>(null);
+  
+  useImperativeHandle(ref, () => innerRef.current!);
+
+  useFrame(({ clock }) => {
+    if (innerRef.current) {
+      const time = clock.getElapsedTime();
+      
+      // Dancing zombie skeleton animation:
+      innerRef.current.rotation.z = Math.sin(time * 6) * 0.15;
+      
+      const head = innerRef.current.children[0] as THREE.Group;
+      if (head) {
+        head.rotation.z = -Math.sin(time * 6) * 0.1;
+      }
+      
+      const leftArm = innerRef.current.children[2] as THREE.Mesh;
+      const rightArm = innerRef.current.children[3] as THREE.Mesh;
+      if (leftArm && rightArm) {
+        leftArm.rotation.z = -Math.PI / 2 + Math.sin(time * 10) * 0.15;
+        rightArm.rotation.z = -Math.PI / 2 - Math.sin(time * 10) * 0.15;
+      }
+
+      const leftLeg = innerRef.current.children[4] as THREE.Mesh;
+      const rightLeg = innerRef.current.children[5] as THREE.Mesh;
+      if (leftLeg && rightLeg) {
+        leftLeg.rotation.z = Math.sin(time * 8) * 0.2;
+        rightLeg.rotation.z = -Math.sin(time * 8) * 0.2;
+      }
+
+      innerRef.current.position.y = 0.6 + Math.sin(time * 12) * 0.05;
+    }
+  });
+
   return (
-    <group ref={ref} position={[x, 0.4, 0]}>
-      {/* Skull Base */}
-      <mesh castShadow receiveShadow material={boneMaterial}>
-        <boxGeometry args={[0.8, 0.8, 0.8]} />
+    <group ref={innerRef} position={[x, 0.6, 0]}>
+      {/* Head */}
+      <group position={[0, 0.65, 0]}>
+        <mesh castShadow receiveShadow material={boneMaterial}>
+          <boxGeometry args={[0.5, 0.5, 0.5]} />
+        </mesh>
+        <mesh position={[0.18, 0.05, 0.26]} material={new THREE.MeshBasicMaterial({ color: '#0f172a' })}>
+          <boxGeometry args={[0.12, 0.12, 0.05]} />
+        </mesh>
+        <mesh position={[-0.18, 0.05, 0.26]} material={new THREE.MeshBasicMaterial({ color: '#0f172a' })}>
+          <boxGeometry args={[0.12, 0.12, 0.05]} />
+        </mesh>
+        <mesh position={[0, -0.08, 0.26]} material={new THREE.MeshBasicMaterial({ color: '#0f172a' })}>
+          <boxGeometry args={[0.06, 0.08, 0.05]} />
+        </mesh>
+      </group>
+
+      {/* Spine / Ribcage */}
+      <group position={[0, 0.2, 0]}>
+        <mesh castShadow receiveShadow material={boneMaterial}>
+          <boxGeometry args={[0.15, 0.6, 0.15]} />
+        </mesh>
+        <mesh position={[0, 0.2, 0]} castShadow material={boneMaterial}>
+          <boxGeometry args={[0.5, 0.08, 0.35]} />
+        </mesh>
+        <mesh position={[0, 0.0, 0]} castShadow material={boneMaterial}>
+          <boxGeometry args={[0.45, 0.08, 0.3]} />
+        </mesh>
+        <mesh position={[0, -0.2, 0]} castShadow material={boneMaterial}>
+          <boxGeometry args={[0.4, 0.08, 0.25]} />
+        </mesh>
+      </group>
+
+      {/* Arms pointing forward */}
+      <mesh position={[0.2, 0.35, 0.2]} rotation={[0, 0, -Math.PI / 2]} castShadow material={boneMaterial}>
+        <boxGeometry args={[0.5, 0.08, 0.08]} />
       </mesh>
-      {/* Eyes */}
-      <mesh position={[0.2, 0.1, 0.41]} material={new THREE.MeshBasicMaterial({ color: '#0f172a' })}>
-        <boxGeometry args={[0.2, 0.2, 0.05]} />
+      <mesh position={[0.2, 0.35, -0.2]} rotation={[0, 0, -Math.PI / 2]} castShadow material={boneMaterial}>
+        <boxGeometry args={[0.5, 0.08, 0.08]} />
       </mesh>
-      <mesh position={[-0.2, 0.1, 0.41]} material={new THREE.MeshBasicMaterial({ color: '#0f172a' })}>
-        <boxGeometry args={[0.2, 0.2, 0.05]} />
+
+      {/* Legs */}
+      <mesh position={[0, -0.3, 0.15]} castShadow material={boneMaterial}>
+        <boxGeometry args={[0.1, 0.6, 0.1]} />
       </mesh>
-      {/* Nose */}
-      <mesh position={[0, -0.1, 0.41]} material={new THREE.MeshBasicMaterial({ color: '#0f172a' })}>
-        <boxGeometry args={[0.1, 0.15, 0.05]} />
+      <mesh position={[0, -0.3, -0.15]} castShadow material={boneMaterial}>
+        <boxGeometry args={[0.1, 0.6, 0.1]} />
       </mesh>
-      {/* Bones underneath */}
-      <mesh position={[0, -0.4, 0]} rotation={[0, 0, Math.PI / 4]} castShadow receiveShadow material={boneMaterial}>
-        <boxGeometry args={[1.2, 0.2, 0.2]} />
+    </group>
+  );
+});
+
+const Mummy = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => {
+  const innerRef = useRef<THREE.Group>(null);
+  
+  useImperativeHandle(ref, () => innerRef.current!);
+
+  useFrame(({ clock }) => {
+    if (innerRef.current) {
+      const time = clock.getElapsedTime();
+      
+      // Zombie mummy slow dance:
+      innerRef.current.rotation.z = Math.sin(time * 4) * 0.12;
+      
+      const head = innerRef.current.children[0] as THREE.Group;
+      if (head) {
+        head.rotation.z = -Math.sin(time * 4) * 0.08;
+      }
+      
+      const leftArm = innerRef.current.children[2] as THREE.Mesh;
+      const rightArm = innerRef.current.children[3] as THREE.Mesh;
+      if (leftArm && rightArm) {
+        leftArm.rotation.z = -Math.PI / 2 + Math.sin(time * 8) * 0.1;
+        rightArm.rotation.z = -Math.PI / 2 - Math.sin(time * 8) * 0.1;
+      }
+
+      const leftLeg = innerRef.current.children[4] as THREE.Mesh;
+      const rightLeg = innerRef.current.children[5] as THREE.Mesh;
+      if (leftLeg && rightLeg) {
+        leftLeg.rotation.z = Math.sin(time * 6) * 0.15;
+        rightLeg.rotation.z = -Math.sin(time * 6) * 0.15;
+      }
+
+      innerRef.current.position.y = 0.6 + Math.sin(time * 8) * 0.06;
+    }
+  });
+
+  return (
+    <group ref={innerRef} position={[x, 0.6, 0]}>
+      {/* Head */}
+      <group position={[0, 0.65, 0]}>
+        <mesh castShadow receiveShadow material={mummyMaterial}>
+          <boxGeometry args={[0.5, 0.5, 0.5]} />
+        </mesh>
+        <mesh position={[0.18, 0.05, 0.26]} material={mummyEyeMaterial}>
+          <boxGeometry args={[0.12, 0.12, 0.05]} />
+        </mesh>
+        <mesh position={[-0.18, 0.05, 0.26]} material={mummyEyeMaterial}>
+          <boxGeometry args={[0.12, 0.12, 0.05]} />
+        </mesh>
+      </group>
+
+      {/* Body wrapped in yellow bandages */}
+      <group position={[0, 0.2, 0]}>
+        <mesh castShadow receiveShadow material={mummyMaterial}>
+          <boxGeometry args={[0.22, 0.6, 0.22]} />
+        </mesh>
+        <mesh position={[0, 0.15, 0]} castShadow material={mummyMaterial}>
+          <boxGeometry args={[0.42, 0.12, 0.32]} />
+        </mesh>
+        <mesh position={[0, -0.15, 0]} castShadow material={mummyMaterial}>
+          <boxGeometry args={[0.38, 0.12, 0.28]} />
+        </mesh>
+      </group>
+
+      {/* Arms pointing forward */}
+      <mesh position={[0.2, 0.35, 0.2]} rotation={[0, 0, -Math.PI / 2]} castShadow material={mummyMaterial}>
+        <boxGeometry args={[0.5, 0.1, 0.1]} />
       </mesh>
-      <mesh position={[0, -0.4, 0]} rotation={[0, 0, -Math.PI / 4]} castShadow receiveShadow material={boneMaterial}>
-        <boxGeometry args={[1.2, 0.2, 0.2]} />
+      <mesh position={[0.2, 0.35, -0.2]} rotation={[0, 0, -Math.PI / 2]} castShadow material={mummyMaterial}>
+        <boxGeometry args={[0.5, 0.1, 0.1]} />
+      </mesh>
+
+      {/* Legs */}
+      <mesh position={[0, -0.3, 0.12]} castShadow material={mummyMaterial}>
+        <boxGeometry args={[0.12, 0.6, 0.12]} />
+      </mesh>
+      <mesh position={[0, -0.3, -0.12]} castShadow material={mummyMaterial}>
+        <boxGeometry args={[0.12, 0.6, 0.12]} />
       </mesh>
     </group>
   );
@@ -105,8 +246,13 @@ const Bird = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) =
 
   useFrame(({ clock }) => {
     if (innerRef.current) {
-      // Flapping wings
       const time = clock.getElapsedTime();
+      
+      // Bobbing Y up and down smoothly
+      const bobY = Math.sin(time * 4 + x) * 0.45;
+      innerRef.current.position.y = y + bobY;
+
+      // Flapping wings
       const wingL = innerRef.current.children[1] as THREE.Mesh;
       const wingR = innerRef.current.children[2] as THREE.Mesh;
       if (wingL && wingR) {
@@ -204,131 +350,201 @@ const PowerupBox = forwardRef<THREE.Group, { x: number; y: number; type?: Poweru
 
 export const DesertObstacles = forwardRef<ObstacleData[]>((props, ref) => {
   const { status, speed, gameId, difficulty, isTransitioning } = useGameStore();
-  const [obstacles, setObstacles] = useState<ObstacleData[]>([]);
+  
+  // The pool is a fixed state array of 8 items, pre-created with stable refs
+  const [pool] = useState<ObstacleData[]>(() =>
+    Array.from({ length: 8 }, (_, i) => ({
+      id: i,
+      type: 'cactus-small',
+      x: -1000,
+      y: -1000,
+      ref: createRef<THREE.Group>()
+    }))
+  );
+
   const nextSpawnX = useRef(SPAWN_DISTANCE);
-  const idCounter = useRef(0);
+  const lastInitializedGameId = useRef<number | null>(null);
 
-  // Sync ref with local state so Game component can check collisions
-  useImperativeHandle(ref, () => obstacles, [obstacles]);
+  const generateObstacleInSlot = (slot: ObstacleData, x: number): ObstacleData => {
+    const globalObstacle = tryGenerateGlobalObstacle();
+    
+    if (globalObstacle) {
+      slot.type = globalObstacle.type;
+      slot.x = x;
+      slot.y = globalObstacle.y;
+      slot.powerupType = globalObstacle.powerupType;
+      return slot;
+    }
 
-  const generateObstacle = (x: number): ObstacleData => {
+    // Scenario-specific obstacles
     const rand = Math.random();
     let type: ObstacleType = 'cactus-small';
     let y = 0;
-    let powerupType: PowerupType | undefined;
+
+    const score = useGameStore.getState().score;
+    const birdThreshold = Math.max(0.55, 0.8 - (score / 60000));
     
-    let lifeChance = 0;
-    if (difficulty === 'easy') lifeChance = 0.03;
-    if (difficulty === 'medium') lifeChance = 0.01;
-
-    let powerupChance = difficulty === 'hard' ? 0.01 : 0.03;
-
-    if (rand < lifeChance) {
-      type = 'powerup';
-      y = Math.random() > 0.5 ? 1.0 : 2.5;
-      powerupType = 'life';
-    } else if (rand < lifeChance + powerupChance) {
-      type = 'powerup';
-      y = Math.random() > 0.5 ? 1.0 : 2.5;
-      const powerups: PowerupType[] = ['wings', 'super', 'ghost', 'jaw', 'earth'];
-      powerupType = powerups[Math.floor(Math.random() * powerups.length)];
+    if (isBirdEligible() && rand > birdThreshold) {
+      type = 'bird';
+      y = 0.8 + Math.random() * 2.4;
+    } else if (rand > 0.5) {
+      type = 'cactus-large';
     } else {
-      const score = useGameStore.getState().score;
-      const isBirdEligible = speed > 14 || score > 1500;
-      const birdThreshold = Math.max(0.55, 0.8 - (score / 60000));
-      
-      if (isBirdEligible && rand > birdThreshold) {
-        type = 'bird';
-        // Bird can be low, middle or high
-        const birdHeights = [1.0, 1.5, 2.6];
-        y = birdHeights[Math.floor(Math.random() * birdHeights.length)];
-      } else if (rand > 0.5) {
-        type = 'cactus-large';
+      if (score > 20000 && Math.random() > 0.5) {
+        type = 'mummy';
       } else {
         type = 'skull';
       }
     }
 
-    return {
-      id: idCounter.current++,
-      type,
-      x,
-      y,
-      powerupType,
-      ref: { current: null } // will be attached by react
-    };
+    slot.type = type;
+    slot.x = x;
+    slot.y = y;
+    slot.powerupType = undefined;
+    return slot;
   };
 
-  // Initial spawn
+  // Handle start and reset
   useEffect(() => {
     if (status === 'playing') {
-       const initialObstacles = [
-         generateObstacle(25),
-         generateObstacle(40),
-       ];
-       setObstacles(initialObstacles);
-       if (ref && 'current' in ref) {
-         (ref as React.MutableRefObject<ObstacleData[]>).current = initialObstacles;
-       }
-       nextSpawnX.current = 55;
-    }
-  }, [gameId]); // Only run when a new game starts
+       if (lastInitializedGameId.current !== gameId) {
+          lastInitializedGameId.current = gameId;
 
-  useEffect(() => {
-    if (status === 'menu') {
-      setObstacles([]);
-      nextSpawnX.current = SPAWN_DISTANCE;
+          pool.forEach(obs => {
+            obs.x = -1000;
+            obs.y = -1000;
+            if (obs.ref.current) {
+              obs.ref.current.position.set(-1000, -1000, 0);
+              obs.ref.current.visible = false;
+            }
+          });
+
+          const isTransition = useGameStore.getState().gameTime > 2.0;
+          const firstX = isTransition ? 55 : 25;
+          const secondX = isTransition ? 70 : 40;
+
+          generateObstacleInSlot(pool[0], firstX);
+          generateObstacleInSlot(pool[1], secondX);
+
+          nextSpawnX.current = isTransition ? 85 : 55;
+       }
+
+       // Sync refs
+       pool.forEach(obs => {
+         if (obs.ref.current && obs.x > DESPAWN_DISTANCE) {
+           obs.ref.current.position.set(obs.x, obs.y, 0);
+           obs.ref.current.visible = true;
+         }
+       });
+       
+       if (ref && 'current' in ref) {
+         (ref as React.MutableRefObject<ObstacleData[]>).current = pool.filter(obs => obs.x > DESPAWN_DISTANCE);
+       }
+    } else if (status === 'menu') {
+       lastInitializedGameId.current = null;
+       pool.forEach(obs => {
+         obs.x = -1000;
+         obs.y = -1000;
+         if (obs.ref.current) {
+           obs.ref.current.position.set(-1000, -1000, 0);
+           obs.ref.current.visible = false;
+         }
+       });
+       if (ref && 'current' in ref) {
+         (ref as React.MutableRefObject<ObstacleData[]>).current = [];
+       }
+       nextSpawnX.current = SPAWN_DISTANCE;
     }
-  }, [status]);
+  }, [gameId, status]);
 
   useFrame((_, delta) => {
     if (status !== 'playing') return;
 
     const moveDistance = useGameStore.getState().getCurrentSpeed() * delta;
     
-    // 1. Mutate positions of active obstacles directly
-    obstacles.forEach(obs => {
-      obs.x -= moveDistance;
-      if (obs.ref.current) {
-        obs.ref.current.position.x = obs.x;
+    // 1. Move active items and sync visibility/positions
+    pool.forEach(obs => {
+      if (obs.x > DESPAWN_DISTANCE) {
+        let currentMove = moveDistance;
+        if (obs.type === 'bird') {
+          currentMove += 4 * delta; // Slowly flies forward
+        }
+        obs.x -= currentMove;
+        if (obs.ref.current) {
+          obs.ref.current.position.x = obs.x;
+          if (obs.type !== 'bird') {
+            obs.ref.current.position.y = obs.y;
+          }
+          obs.ref.current.visible = true;
+        }
+      } else {
+        if (obs.ref.current) {
+          obs.ref.current.position.x = -1000;
+          obs.ref.current.visible = false;
+        }
       }
     });
 
     nextSpawnX.current -= moveDistance;
 
-    // 2. Check if we need to remove off-screen or spawn new ones (which requires state change)
-    const hasOffscreen = obstacles.some(obs => obs.x <= DESPAWN_DISTANCE);
+    // 2. Check if we need to recycle off-screen or spawn new ones
     const shouldSpawn = nextSpawnX.current < SPAWN_DISTANCE && !isTransitioning;
 
-    if (hasOffscreen || shouldSpawn) {
-      setObstacles(prev => {
-        let nextObstacles = prev.filter(obs => obs.x > DESPAWN_DISTANCE);
-        
-        if (shouldSpawn) {
-          const score = useGameStore.getState().score;
-          // Gap narrows down from 1.0 to 0.55 as score reaches 20,000 pts
-          const gapMultiplier = Math.max(0.55, 1.0 - (score / 45000));
-          
-          const minGap = ((useGameStore.getState().getCurrentSpeed() * 1.1) + 6) * gapMultiplier;
-          const gap = minGap + Math.random() * (useGameStore.getState().getCurrentSpeed() * 0.8) * gapMultiplier;
-          const newObsX = SPAWN_DISTANCE + gap;
-          
-          nextObstacles.push(generateObstacle(newObsX));
-          nextSpawnX.current = newObsX;
-        }
+    if (shouldSpawn) {
+      const score = useGameStore.getState().score;
+      const spawnFlock = score > 30000 && Math.random() < 0.7;
 
-        // Sync ref with local state
-        if (ref && 'current' in ref) {
-          (ref as React.MutableRefObject<ObstacleData[]>).current = nextObstacles;
-        }
-        return nextObstacles;
-      });
+      if (spawnFlock) {
+         const inactiveSlots = pool.filter(obs => obs.x <= DESPAWN_DISTANCE);
+         if (inactiveSlots.length >= 5) {
+            const nextObsX = calculateNextObstaclePosition();
+            for (let k = 0; k < 5; k++) {
+               const slot = inactiveSlots[k];
+               slot.type = 'bird';
+               slot.x = nextObsX + k * (2.5 + Math.random() * 2);
+               slot.y = 0.8 + Math.random() * 2.4;
+               slot.powerupType = undefined;
+               
+               if (slot.ref.current) {
+                 slot.ref.current.position.set(slot.x, slot.y, 0);
+                 slot.ref.current.visible = true;
+               }
+            }
+            nextSpawnX.current = nextObsX + 5 * 3;
+         } else {
+            const inactiveSlot = pool.find(obs => obs.x <= DESPAWN_DISTANCE);
+            if (inactiveSlot) {
+              const newObsX = calculateNextObstaclePosition();
+              generateObstacleInSlot(inactiveSlot, newObsX);
+              nextSpawnX.current = newObsX;
+              if (inactiveSlot.ref.current) {
+                inactiveSlot.ref.current.position.set(inactiveSlot.x, inactiveSlot.y, 0);
+                inactiveSlot.ref.current.visible = true;
+              }
+            }
+         }
+      } else {
+         const inactiveSlot = pool.find(obs => obs.x <= DESPAWN_DISTANCE);
+         if (inactiveSlot) {
+           const newObsX = calculateNextObstaclePosition();
+           generateObstacleInSlot(inactiveSlot, newObsX);
+           nextSpawnX.current = newObsX;
+           if (inactiveSlot.ref.current) {
+             inactiveSlot.ref.current.position.set(inactiveSlot.x, inactiveSlot.y, 0);
+             inactiveSlot.ref.current.visible = true;
+           }
+         }
+      }
+    }
+
+    if (ref && 'current' in ref) {
+      (ref as React.MutableRefObject<ObstacleData[]>).current = pool.filter(obs => obs.x > DESPAWN_DISTANCE);
     }
   });
 
   return (
     <group>
-      {obstacles.map(obs => {
+      {pool.map(obs => {
         if (obs.type === 'cactus-small') {
           return <Cactus key={obs.id} ref={obs.ref as any} x={obs.x} scale={0.8} numStems={1} />;
         }
@@ -342,7 +558,10 @@ export const DesertObstacles = forwardRef<ObstacleData[]>((props, ref) => {
           return <PowerupBox key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} type={obs.powerupType} />;
         }
         if (obs.type === 'skull') {
-          return <Skull key={obs.id} ref={obs.ref as any} x={obs.x} />;
+          return <Skeleton key={obs.id} ref={obs.ref as any} x={obs.x} />;
+        }
+        if (obs.type === 'mummy') {
+          return <Mummy key={obs.id} ref={obs.ref as any} x={obs.x} />;
         }
         return null;
       })}
