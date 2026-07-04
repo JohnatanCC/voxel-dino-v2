@@ -410,12 +410,30 @@ function scheduleBGM() {
   }
 }
 
+let currentScenarioBgm: string | null = null;
+
+export function pauseBackgroundMusic() {
+  if (audioCtx.state === 'running') {
+    audioCtx.suspend();
+  }
+}
+
 export function playBackgroundMusic(scenario: string = 'desert') {
+  if (isPlayingBgm && currentScenarioBgm === scenario) {
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    return;
+  }
+
   if (isPlayingBgm) {
     stopBackgroundMusic();
   }
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
   
+  currentScenarioBgm = scenario;
   isPlayingBgm = true;
   bgmGain = audioCtx.createGain();
   bgmGain.connect(audioCtx.destination);
@@ -468,6 +486,7 @@ export function playBackgroundMusic(scenario: string = 'desert') {
 
 export function stopBackgroundMusic() {
   isPlayingBgm = false;
+  currentScenarioBgm = null;
   if (timerID !== null) cancelAnimationFrame(timerID);
   if (bgmGain) {
     bgmGain.disconnect();

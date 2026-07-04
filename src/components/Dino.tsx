@@ -63,6 +63,7 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
   const tilt = useRef(0);
   const earthCooldown = useRef(0);
   const isUnderground = useRef(false);
+  const runPhase = useRef(0);
 
   // Combine forwarded ref and local ref
   useEffect(() => {
@@ -149,6 +150,7 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
       springVel.current = 0;
       currentScale.current.set(1, 1, 1);
       tilt.current = 0;
+      runPhase.current = 0;
       if (innerRef.current) {
         innerRef.current.scale.set(1, 1, 1);
         innerRef.current.rotation.z = 0;
@@ -171,18 +173,45 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
     }
   }, [status]);
 
-  useFrame((state, delta) => {
-    const p = useGameStore.getState().activePowerup;
+   useFrame((state, delta) => {
+    const storeState = useGameStore.getState();
+    const scenario = storeState.scenario;
+    const coldTimer = storeState.coldTimer;
+    const p = storeState.activePowerup;
+
     if (p === 'super') {
        dinoMaterial.emissive.setHSL((state.clock.getElapsedTime() * 2) % 1, 1, 0.5);
+       dinoMaterial.emissiveIntensity = 1.0;
        dinoMaterial.color.set('#ffffff');
     } else {
-       dinoMaterial.emissive.set('#000000');
-       dinoMaterial.color.set(dinoColor);
+       if (scenario === 'snow') {
+          const frostFactor = Math.max(0, 1.0 - (coldTimer / 45));
+          const baseColor = new THREE.Color(dinoColor);
+          const frostColor = new THREE.Color('#38bdf8');
+          baseColor.lerp(frostColor, frostFactor);
+          dinoMaterial.color.copy(baseColor);
+          
+          const iceEmissive = new THREE.Color('#0ea5e9');
+          dinoMaterial.emissive.copy(iceEmissive);
+          dinoMaterial.emissiveIntensity = frostFactor * 0.8;
+       } else {
+          dinoMaterial.emissive.set('#000000');
+          dinoMaterial.emissiveIntensity = 1.0;
+          dinoMaterial.color.set(dinoColor);
+       }
     }
     
+    const isEating = performance.now() < useGameStore.getState().eatingUntil;
     if (lowerJawRef.current) {
-       lowerJawRef.current.rotation.z = p === 'super' ? -0.4 : 0;
+       if (isEating) {
+          lowerJawRef.current.rotation.z = -Math.abs(Math.sin(state.clock.getElapsedTime() * 15)) * 0.45;
+          if (Math.random() > 0.85) {
+             const baseScale = p === 'super' ? 2.5 : 1.0;
+             spawnParticles('sparkle', [DINO_X + 1.2 * baseScale, logicalY.current + 2.0 * baseScale, 0], 2, '#ef4444');
+          }
+       } else {
+          lowerJawRef.current.rotation.z = p === 'super' ? -0.4 : 0;
+       }
     }
     
     if (wingLeftRef.current && wingRightRef.current) {
@@ -313,9 +342,7 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
 
         // Step dust based on animation cycle
         if (isGrounded.current && !isCrouching.current && currentPowerup !== "ghost") {
-           const time = state.clock.getElapsedTime();
-           const runSpeed = useGameStore.getState().getCurrentSpeed() * 0.5;
-           const cycle = Math.sin(time * runSpeed);
+           const cycle = Math.sin(runPhase.current * 0.67);
            if (Math.abs(cycle) > 0.95 && Math.random() > 0.5) {
                spawnParticles("dust", [DINO_X - 0.5 * baseScale, 0.1, (Math.random() - 0.5) * 0.5], 1 * baseScale, "#d2b48c");
            }
@@ -334,13 +361,17 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
 
         // Head dynamic look
 
-        if (headRef.current && !isUnderground.current) {
-           let targetHeadRot = 0;
-           if (!isGrounded.current) {
-              targetHeadRot = Math.max(-0.5, Math.min(0.5, velocity.current * 0.015)); 
-           }
-           headRef.current.rotation.z = THREE.MathUtils.lerp(headRef.current.rotation.z, targetHeadRot, 0.15);
-        }
+         if (headRef.current && !isUnderground.current) {
+            let targetHeadRot = 0;
+            if (!isGrounded.current) {
+               targetHeadRot = Math.max(-0.5, Math.min(0.5, velocity.current * 0.015)); 
+            }
+            let chewOffset = 0;
+            if (isEating) {
+               chewOffset = Math.sin(state.clock.getElapsedTime() * 15) * 0.08;
+            }
+            headRef.current.rotation.z = THREE.MathUtils.lerp(headRef.current.rotation.z, targetHeadRot + chewOffset, 0.15);
+         }
       }
 
       velocity.current = newVel;
@@ -349,9 +380,9 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
 
       // Run animation
       if (status === "playing" || status === "menu") {
-        const time = state.clock.getElapsedTime();
-        const speed = useGameStore.getState().speed;
         const runSpeed = useGameStore.getState().getCurrentSpeed() * 0.75; // Increased for snappier leg motion
+        runPhase.current += runSpeed * delta;
+        const phase = runPhase.current;
         let visualY = newY;
 
         if (isGrounded.current) {
@@ -361,22 +392,22 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
                rightLegRef.current.rotation.z = 0.2;
                leftLegRef.current.position.y = 0.7;
                rightLegRef.current.position.y = 0.7;
-               visualY += 0.5 + Math.sin(time * 5) * 0.2; // Float
+               visualY += 0.5 + Math.sin(phase * 1.5) * 0.2; // Float
             } else {
-               // Advanced procedural running cycle
-               const leftCycle = Math.sin(time * runSpeed);
-               const rightCycle = Math.sin(time * runSpeed + Math.PI);
+               // Advanced procedural running cycle using phase
+               const leftCycle = Math.sin(phase);
+               const rightCycle = Math.sin(phase + Math.PI);
                
                // Legs rotate back and forth
-               leftLegRef.current.rotation.z = leftCycle * 0.9 + Math.cos(time * runSpeed) * 0.2;
-               rightLegRef.current.rotation.z = rightCycle * 0.9 + Math.cos(time * runSpeed + Math.PI) * 0.2;
+               leftLegRef.current.rotation.z = leftCycle * 0.9 + Math.cos(phase) * 0.2;
+               rightLegRef.current.rotation.z = rightCycle * 0.9 + Math.cos(phase + Math.PI) * 0.2;
                
                // Dynamic leg lifting (bending at knee equivalent)
                leftLegRef.current.position.y = 0.7 + Math.max(0, -leftCycle) * 0.4;
                rightLegRef.current.position.y = 0.7 + Math.max(0, -rightCycle) * 0.4;
                
                // Dynamic bouncing body
-               visualY += Math.abs(Math.sin(time * runSpeed)) * 0.22 * baseScale;
+               visualY += Math.abs(Math.sin(phase)) * 0.22 * baseScale;
             }
           }
 
@@ -386,11 +417,11 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
                rightArmRef.current.rotation.z = 0;
             } else {
                // Arm swings (opposite to legs)
-               leftArmRef.current.rotation.z = Math.sin(time * runSpeed + Math.PI) * 0.6;
-               leftArmRef.current.rotation.y = Math.sin(time * runSpeed + Math.PI) * 0.2;
+               leftArmRef.current.rotation.z = Math.sin(phase + Math.PI) * 0.6;
+               leftArmRef.current.rotation.y = Math.sin(phase + Math.PI) * 0.2;
                
-               rightArmRef.current.rotation.z = Math.sin(time * runSpeed) * 0.6;
-               rightArmRef.current.rotation.y = Math.sin(time * runSpeed) * 0.2;
+               rightArmRef.current.rotation.z = Math.sin(phase) * 0.6;
+               rightArmRef.current.rotation.y = Math.sin(phase) * 0.2;
             }
           }
         } else {
@@ -453,8 +484,8 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
             headRef.current.position.y = 0;
             headRef.current.position.x = 0.5;
             if (isGrounded.current && currentPowerup !== "ghost") {
-               headRef.current.rotation.z = Math.sin(time * runSpeed) * 0.1 - 0.05;
-               headRef.current.position.x = 0.5 + Math.sin(time * runSpeed) * 0.05;
+               headRef.current.rotation.z = Math.sin(phase) * 0.1 - 0.05;
+               headRef.current.position.x = 0.5 + Math.sin(phase) * 0.05;
             } else if (velocity.current < 0) {
                headRef.current.rotation.z = THREE.MathUtils.lerp(headRef.current.rotation.z, 0.2, 0.1);
             }

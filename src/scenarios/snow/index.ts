@@ -1,7 +1,7 @@
 import { ScenarioConfig } from '../types';
 import { SnowGround } from './SnowGround';
 import { SnowObstacles } from './SnowObstacles';
-import { SnowEnvironment } from './SnowEnvironment';
+
 
 export const snowConfig: ScenarioConfig = {
   id: 'snow',
@@ -17,5 +17,5 @@ export const snowConfig: ScenarioConfig = {
   fogFar: 80,
   GroundComponent: SnowGround,
   ObstaclesComponent: SnowObstacles,
-  EnvironmentComponent: SnowEnvironment,
+
 };

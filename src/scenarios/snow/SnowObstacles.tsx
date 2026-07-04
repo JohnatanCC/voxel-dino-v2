@@ -1,16 +1,14 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useRef, useState, createRef, useImperativeHandle } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../../store/gameStore';
 import { ObstacleData, ObstacleType, PowerupType } from '../types';
+import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition } from '../helpers';
 import * as THREE from 'three';
 
 export type SnowObstacleType = 'rock-large' | 'snowman' | 'rock-small' | 'powerup' | 'firebox';
 
-const SPAWN_DISTANCE = 30;
-const DESPAWN_DISTANCE = -10;
-
 // Reusable static materials
-const snowmanBodyMaterial = new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.9 });
+const snowmanBodyMaterial = new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.95 });
 const snowmanNoseMaterial = new THREE.MeshStandardMaterial({ color: '#f97316', roughness: 0.8 });
 const snowmanCoalMaterial = new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 1.0 });
 const snowmanStickMaterial = new THREE.MeshStandardMaterial({ color: '#78350f', roughness: 0.9 });
@@ -18,8 +16,14 @@ const snowmanHatMaterial = new THREE.MeshStandardMaterial({ color: '#111827', ro
 
 const rockBaseMaterial = new THREE.MeshStandardMaterial({ color: '#64748b', roughness: 0.9, flatShading: true });
 const rockSnowMaterial = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8, flatShading: true });
-const fireboxMaterial = new THREE.MeshStandardMaterial({ color: '#ef4444', emissive: '#f87171', emissiveIntensity: 0.5 });
 const powerupTextMaterial = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+
+// Campfire materials
+const woodMaterial = new THREE.MeshStandardMaterial({ color: '#78350f', roughness: 0.9 });
+const coalMaterial = new THREE.MeshStandardMaterial({ color: '#1e293b', roughness: 0.95 });
+const flameRedMaterial = new THREE.MeshStandardMaterial({ color: '#ef4444', emissive: '#ef4444', emissiveIntensity: 1.5, roughness: 0.1 });
+const flameOrangeMaterial = new THREE.MeshStandardMaterial({ color: '#f97316', emissive: '#f97316', emissiveIntensity: 1.5, roughness: 0.1 });
+const flameYellowMaterial = new THREE.MeshStandardMaterial({ color: '#fbbf24', emissive: '#fbbf24', emissiveIntensity: 1.5, roughness: 0.1 });
 
 // Reusable static geometries
 const snowmanBaseGeo = new THREE.BoxGeometry(0.9, 0.9, 0.9);
@@ -35,7 +39,13 @@ const rockLargeGeo = new THREE.DodecahedronGeometry(1.2, 0);
 const rockLargeSnowGeo = new THREE.DodecahedronGeometry(1.1, 0);
 const rockSmallGeo = new THREE.DodecahedronGeometry(0.7, 0);
 const rockSmallSnowGeo = new THREE.DodecahedronGeometry(0.65, 0);
-const fireboxGeo = new THREE.BoxGeometry(1, 1, 1);
+
+// Campfire geometries
+const logGeo = new THREE.BoxGeometry(0.8, 0.22, 0.22);
+const coalGeo = new THREE.BoxGeometry(0.18, 0.12, 0.18);
+const flameBaseGeo = new THREE.BoxGeometry(0.42, 0.42, 0.42);
+const flameMidGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+const flameTopGeo = new THREE.BoxGeometry(0.18, 0.18, 0.18);
 
 const powerupBoxGeo = new THREE.BoxGeometry(1, 1, 1);
 const powerupHorizontalBarGeo = new THREE.BoxGeometry(0.5, 0.15, 0.05);
@@ -44,6 +54,127 @@ const powerupQ1Geo = new THREE.BoxGeometry(0.4, 0.1, 0.05);
 const powerupQ2Geo = new THREE.BoxGeometry(0.1, 0.2, 0.05);
 const powerupQ3Geo = new THREE.BoxGeometry(0.3, 0.1, 0.05);
 const powerupQ4Geo = new THREE.BoxGeometry(0.1, 0.1, 0.05);
+
+const RockLargeObstacle = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
+  const innerRef = useRef<THREE.Group>(null);
+  useImperativeHandle(ref, () => innerRef.current!);
+  return (
+    <group ref={innerRef} position={[x, y, 0]}>
+      <mesh position={[0, 0.75, 0]} material={rockBaseMaterial} geometry={rockLargeGeo} castShadow receiveShadow />
+      <mesh position={[0, 1.2, 0]} material={rockSnowMaterial} geometry={rockLargeSnowGeo} castShadow receiveShadow />
+    </group>
+  );
+});
+
+const RockSmallObstacle = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
+  const innerRef = useRef<THREE.Group>(null);
+  useImperativeHandle(ref, () => innerRef.current!);
+  return (
+    <group ref={innerRef} position={[x, y, 0]}>
+      <mesh position={[0, 0.4, 0]} material={rockBaseMaterial} geometry={rockSmallGeo} castShadow receiveShadow />
+      <mesh position={[0, 0.7, 0]} material={rockSnowMaterial} geometry={rockSmallSnowGeo} castShadow receiveShadow />
+    </group>
+  );
+});
+
+const LiveSnowmanObstacle = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
+  const innerRef = useRef<THREE.Group>(null);
+  const headGroupRef = useRef<THREE.Group>(null);
+
+  useImperativeHandle(ref, () => innerRef.current!);
+
+  useFrame(({ clock }) => {
+    const time = clock.getElapsedTime();
+    if (innerRef.current) {
+      // Body wobbles left-right
+      innerRef.current.rotation.z = Math.sin(time * 3) * 0.08;
+      // Body breathes up-down
+      innerRef.current.position.y = y + Math.sin(time * 6) * 0.02;
+    }
+    if (headGroupRef.current) {
+      // Head bounces opposite to body
+      headGroupRef.current.rotation.y = Math.cos(time * 4) * 0.12;
+      headGroupRef.current.rotation.z = Math.cos(time * 3.5) * 0.06;
+    }
+  });
+
+  return (
+    <group ref={innerRef} position={[x, y, 0]}>
+      {/* Base snowball */}
+      <mesh position={[0, 0.45, 0]} castShadow receiveShadow material={snowmanBodyMaterial} geometry={snowmanBaseGeo} />
+      {/* Middle snowball */}
+      <mesh position={[0, 1.15, 0]} castShadow receiveShadow material={snowmanBodyMaterial} geometry={snowmanMiddleGeo} />
+      {/* Arms (branches) */}
+      <mesh position={[0, 1.2, 0.4]} rotation={[0.2, 0, 0.3]} castShadow material={snowmanStickMaterial} geometry={snowmanStickGeo} />
+      <mesh position={[0, 1.2, -0.4]} rotation={[-0.2, 0, 0.3]} castShadow material={snowmanStickMaterial} geometry={snowmanStickGeo} />
+      
+      {/* Coal buttons */}
+      <mesh position={[-0.35, 1.25, 0]} castShadow material={snowmanCoalMaterial} geometry={snowmanCoalGeo} />
+      <mesh position={[-0.35, 1.05, 0]} castShadow material={snowmanCoalMaterial} geometry={snowmanCoalGeo} />
+
+      {/* Head Group (contains face and hat) */}
+      <group ref={headGroupRef} position={[0, 0, 0]}>
+        {/* Head snowball */}
+        <mesh position={[0, 1.625, 0]} castShadow receiveShadow material={snowmanBodyMaterial} geometry={snowmanHeadGeo} />
+        {/* Nose */}
+        <mesh position={[-0.32, 1.625, 0]} castShadow material={snowmanNoseMaterial} geometry={snowmanNoseGeo} />
+        {/* Coal eyes */}
+        <mesh position={[-0.23, 1.72, 0.1]} castShadow material={snowmanCoalMaterial} geometry={snowmanCoalGeo} />
+        <mesh position={[-0.23, 1.72, -0.1]} castShadow material={snowmanCoalMaterial} geometry={snowmanCoalGeo} />
+        
+        {/* Hat */}
+        <mesh position={[0, 1.86, 0]} castShadow material={snowmanHatMaterial} geometry={snowmanHatBrimGeo} />
+        <mesh position={[0, 2.05, 0]} castShadow material={snowmanHatMaterial} geometry={snowmanHatTopGeo} />
+      </group>
+    </group>
+  );
+});
+
+const CampfireObstacle = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
+  const innerRef = useRef<THREE.Group>(null);
+  const flameBaseRef = useRef<THREE.Mesh>(null);
+  const flameMidRef = useRef<THREE.Mesh>(null);
+  const flameTopRef = useRef<THREE.Mesh>(null);
+
+  useImperativeHandle(ref, () => innerRef.current!);
+
+  useFrame(({ clock }) => {
+    const time = clock.getElapsedTime();
+    if (flameBaseRef.current) {
+      flameBaseRef.current.scale.y = 1 + Math.sin(time * 15) * 0.15;
+      flameBaseRef.current.scale.x = 1 + Math.cos(time * 12) * 0.1;
+      flameBaseRef.current.scale.z = 1 + Math.sin(time * 10) * 0.1;
+    }
+    if (flameMidRef.current) {
+      flameMidRef.current.scale.y = 1 + Math.sin(time * 18) * 0.2;
+      flameMidRef.current.position.y = 0.5 + Math.sin(time * 15) * 0.04;
+    }
+    if (flameTopRef.current) {
+      flameTopRef.current.scale.y = 1 + Math.sin(time * 22) * 0.25;
+      flameTopRef.current.position.y = 0.72 + Math.sin(time * 18) * 0.06;
+    }
+  });
+
+  return (
+    <group ref={innerRef} position={[x, y, 0]}>
+      {/* Logs at base */}
+      <mesh position={[0, 0.1, 0.15]} rotation={[0.1, 0.8, 0]} material={woodMaterial} geometry={logGeo} castShadow />
+      <mesh position={[0, 0.1, -0.15]} rotation={[0.1, -0.8, 0]} material={woodMaterial} geometry={logGeo} castShadow />
+      {/* Coals surrounding the fire */}
+      <mesh position={[0.3, 0.05, 0.3]} material={coalMaterial} geometry={coalGeo} />
+      <mesh position={[-0.3, 0.05, 0.3]} material={coalMaterial} geometry={coalGeo} />
+      <mesh position={[0.3, 0.05, -0.3]} material={coalMaterial} geometry={coalGeo} />
+      <mesh position={[-0.3, 0.05, -0.3]} material={coalMaterial} geometry={coalGeo} />
+
+      {/* Flame Base (Red) */}
+      <mesh ref={flameBaseRef} position={[0, 0.25, 0]} material={flameRedMaterial} geometry={flameBaseGeo} />
+      {/* Flame Mid (Orange) */}
+      <mesh ref={flameMidRef} position={[0, 0.5, 0]} material={flameOrangeMaterial} geometry={flameMidGeo} />
+      {/* Flame Top (Yellow) */}
+      <mesh ref={flameTopRef} position={[0, 0.72, 0]} material={flameYellowMaterial} geometry={flameTopGeo} />
+    </group>
+  );
+});
 
 const PowerupBox = forwardRef<THREE.Group, { x: number; y: number; type?: PowerupType }>(({ x, y, type }, ref) => {
   const innerRef = useRef<THREE.Group>(null);
@@ -96,189 +227,134 @@ const PowerupBox = forwardRef<THREE.Group, { x: number; y: number; type?: Poweru
 });
 
 export const SnowObstacles = forwardRef<ObstacleData[]>((props, ref) => {
-  const { status, speed, gameId, difficulty, isTransitioning } = useGameStore();
-  const [obstacles, setObstacles] = useState<ObstacleData[]>([]);
+  const { status, speed, gameId, isTransitioning } = useGameStore();
+  
+  // The pool is a fixed state array of 8 items, pre-created with stable refs
+  const [pool] = useState<ObstacleData[]>(() =>
+    Array.from({ length: 8 }, (_, i) => ({
+      id: i,
+      type: 'rock-large',
+      x: -100,
+      y: 0,
+      ref: createRef<THREE.Group>(),
+      powerupType: undefined,
+    }))
+  );
+
   const nextSpawnX = useRef(SPAWN_DISTANCE);
-  const idCounter = useRef(0);
+  const lastInitializedGameId = useRef(-1);
 
-  useImperativeHandle(ref, () => obstacles, [obstacles]);
-
-  const generateObstacle = (x: number): ObstacleData => {
-    const rand = Math.random();
-    let type: SnowObstacleType = 'snowman';
-    let y = 0;
-    let powerupType: PowerupType | undefined;
-
-    let lifeChance = 0;
-    if (difficulty === 'easy') lifeChance = 0.03;
-    if (difficulty === 'medium') lifeChance = 0.01;
-
-    let powerupChance = difficulty === 'hard' ? 0.01 : 0.03;
-
-    if (rand < lifeChance) {
-      type = 'powerup';
-      y = 1.5 + Math.random();
-      powerupType = 'life';
-    } else if (rand < lifeChance + powerupChance) {
-      type = 'powerup';
-      y = 1.5 + Math.random();
-      const powerups: PowerupType[] = ['wings', 'super', 'ghost', 'jaw', 'earth'];
-      powerupType = powerups[Math.floor(Math.random() * powerups.length)];
-    } else {
-      const obstacleRand = Math.random();
-      if (obstacleRand < 0.15) {
-        type = 'firebox';
-        y = 1.0;
-      } else if (obstacleRand < 0.5) {
-        type = 'rock-large';
-      } else if (obstacleRand < 0.75) {
-        type = 'rock-small';
-      } else {
-        type = 'snowman';
-      }
-    }
-
-    return {
-      id: idCounter.current++,
-      type,
-      x,
-      y,
-      powerupType,
-      ref: { current: null } as React.RefObject<THREE.Group>,
-    };
-  };
-
+  // Initialize/reset pool when gameId changes
   useEffect(() => {
-    if (status === 'playing') {
-       const initialObstacles = [
-         generateObstacle(25),
-         generateObstacle(40),
-       ];
-       setObstacles(initialObstacles);
-       if (ref && 'current' in ref) {
-         (ref as React.MutableRefObject<ObstacleData[]>).current = initialObstacles;
-       }
-       nextSpawnX.current = 55;
-    }
-  }, [gameId]);
-
-  useEffect(() => {
-    if (status === 'menu') {
-      setObstacles([]);
-      nextSpawnX.current = SPAWN_DISTANCE;
-    }
-  }, [status]);
+     if (gameId !== lastInitializedGameId.current) {
+        lastInitializedGameId.current = gameId;
+        pool.forEach(obs => {
+          obs.x = -100;
+          obs.y = 0;
+          if (obs.ref.current) {
+            obs.ref.current.position.set(-100, 0, 0);
+            obs.ref.current.visible = false;
+          }
+        });
+        nextSpawnX.current = SPAWN_DISTANCE;
+     }
+  }, [gameId, pool]);
 
   useFrame((state, delta) => {
     if (status !== 'playing') return;
 
-    const moveDistance = useGameStore.getState().getCurrentSpeed() * delta;
+    const currentSpeed = useGameStore.getState().getCurrentSpeed();
+    const moveDistance = currentSpeed * delta;
 
-    // 1. Mutate positions of active obstacles directly
-    obstacles.forEach(obs => {
-      obs.x -= moveDistance;
-      if (obs.ref.current) {
-        obs.ref.current.position.x = obs.x;
-        
-        // Add wiggle to firebox
-        if (obs.type === 'firebox') {
-           obs.ref.current.rotation.y += delta * 2;
-           obs.ref.current.position.y = obs.y + Math.sin(state.clock.elapsedTime * 5) * 0.2;
+    // 1. Move active obstacles
+    pool.forEach(obs => {
+      if (obs.x > DESPAWN_DISTANCE) {
+        obs.x -= moveDistance;
+        if (obs.ref.current) {
+          obs.ref.current.position.x = obs.x;
+          obs.ref.current.position.y = obs.y;
+          obs.ref.current.visible = true;
+        }
+      } else {
+        if (obs.ref.current) {
+          obs.ref.current.position.x = -1000;
+          obs.ref.current.visible = false;
         }
       }
     });
 
     nextSpawnX.current -= moveDistance;
 
-    // 2. Check if we need to remove off-screen or spawn new ones (which requires state change)
-    const hasOffscreen = obstacles.some(obs => obs.x <= DESPAWN_DISTANCE);
+    // 2. Check if we need to recycle off-screen or spawn new ones
     const shouldSpawn = nextSpawnX.current < SPAWN_DISTANCE && !isTransitioning;
+    if (shouldSpawn) {
+      const inactiveSlot = pool.find(obs => obs.x <= DESPAWN_DISTANCE);
+      if (inactiveSlot) {
+        // Decide obstacle type: 10% chance for powerup, 30% campfire, 60% standard obstacles
+        const rand = Math.random();
+        let chosenType: SnowObstacleType = 'rock-large';
+        let spawnY = 0;
+        let chosenPowerup: PowerupType | undefined;
 
-    if (hasOffscreen || shouldSpawn) {
-      setObstacles(prev => {
-        let nextObstacles = prev.filter(obs => obs.x > DESPAWN_DISTANCE);
-        
-        if (shouldSpawn) {
-          const score = useGameStore.getState().score;
-          // Gap narrows down from 1.0 to 0.55 as score reaches 20,000 pts
-          const gapMultiplier = Math.max(0.55, 1.0 - (score / 45000));
-          
-          const minGap = ((useGameStore.getState().getCurrentSpeed() * 1.1) + 6) * gapMultiplier;
-          const gap = minGap + Math.random() * (useGameStore.getState().getCurrentSpeed() * 0.8) * gapMultiplier;
-          const newObsX = SPAWN_DISTANCE + gap;
-          
-          nextObstacles.push(generateObstacle(newObsX));
-          nextSpawnX.current = newObsX;
+        if (rand < 0.1) {
+          chosenType = 'powerup';
+          spawnY = Math.random() > 0.5 ? 2.5 : 1.2; // high or low
+          const powerupOpts: PowerupType[] = ['wings', 'super', 'ghost', 'jaw', 'earth', 'life'];
+          chosenPowerup = powerupOpts[Math.floor(Math.random() * powerupOpts.length)];
+        } else if (rand < 0.4) {
+          chosenType = 'firebox'; // Cozy Campfire
+          spawnY = 0;
+        } else {
+          const types: SnowObstacleType[] = ['rock-large', 'rock-small', 'snowman'];
+          chosenType = types[Math.floor(Math.random() * types.length)];
+          spawnY = 0;
         }
 
-        // Sync ref with local state
-        if (ref && 'current' in ref) {
-          (ref as React.MutableRefObject<ObstacleData[]>).current = nextObstacles;
+        // Try to generate global powerup/obstacle override
+        const globalOverride = tryGenerateGlobalObstacle();
+        if (globalOverride) {
+          chosenType = globalOverride.type as any;
+          spawnY = globalOverride.y;
+          chosenPowerup = globalOverride.powerupType;
         }
-        return nextObstacles;
-      });
+
+        inactiveSlot.type = chosenType as any;
+        inactiveSlot.powerupType = chosenPowerup;
+        inactiveSlot.x = SPAWN_DISTANCE + nextSpawnX.current;
+        inactiveSlot.y = spawnY;
+
+        nextSpawnX.current = calculateNextObstaclePosition();
+
+        // Force React update so the new mesh type is rendered
+        if (inactiveSlot.ref.current) {
+          inactiveSlot.ref.current.position.set(inactiveSlot.x, inactiveSlot.y, 0);
+          inactiveSlot.ref.current.visible = true;
+        }
+      }
+    }
+
+    if (ref && 'current' in ref) {
+      (ref as React.MutableRefObject<ObstacleData[]>).current = pool.filter(obs => obs.x > DESPAWN_DISTANCE);
     }
   });
 
   return (
     <group>
-      {obstacles.map(obs => {
+      {pool.map(obs => {
         if (obs.type === 'rock-large') {
-          return (
-            <group key={obs.id} ref={obs.ref} position={[obs.x, obs.y, 0]}>
-              <mesh position={[0, 0.75, 0]} material={rockBaseMaterial} geometry={rockLargeGeo} />
-              <mesh position={[0, 1.2, 0]} material={rockSnowMaterial} geometry={rockLargeSnowGeo} />
-            </group>
-          );
+          return <RockLargeObstacle key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} />;
         }
         
         if (obs.type === 'snowman') {
-          return (
-            <group key={obs.id} ref={obs.ref} position={[obs.x, obs.y, 0]}>
-              {/* Voxel Snowman Body Base */}
-              <mesh position={[0, 0.45, 0]} castShadow receiveShadow material={snowmanBodyMaterial} geometry={snowmanBaseGeo} />
-              {/* Voxel Snowman Body Middle */}
-              <mesh position={[0, 1.15, 0]} castShadow receiveShadow material={snowmanBodyMaterial} geometry={snowmanMiddleGeo} />
-              {/* Voxel Snowman Head */}
-              <mesh position={[0, 1.625, 0]} castShadow receiveShadow material={snowmanBodyMaterial} geometry={snowmanHeadGeo} />
-
-              {/* Carrot Nose (Orange Voxel) */}
-              <mesh position={[-0.32, 1.625, 0]} castShadow material={snowmanNoseMaterial} geometry={snowmanNoseGeo} />
-
-              {/* Eyes (Charcoal Voxels) */}
-              <mesh position={[-0.23, 1.72, 0.1]} castShadow material={snowmanCoalMaterial} geometry={snowmanCoalGeo} />
-              <mesh position={[-0.23, 1.72, -0.1]} castShadow material={snowmanCoalMaterial} geometry={snowmanCoalGeo} />
-
-              {/* Buttons (Charcoal Voxels) */}
-              <mesh position={[-0.35, 1.25, 0]} castShadow material={snowmanCoalMaterial} geometry={snowmanCoalGeo} />
-              <mesh position={[-0.35, 1.05, 0]} castShadow material={snowmanCoalMaterial} geometry={snowmanCoalGeo} />
-
-              {/* Wooden Stick Arms (Brown Voxels) */}
-              <mesh position={[0, 1.2, 0.4]} rotation={[0.2, 0, 0.3]} castShadow material={snowmanStickMaterial} geometry={snowmanStickGeo} />
-              <mesh position={[0, 1.2, -0.4]} rotation={[-0.2, 0, 0.3]} castShadow material={snowmanStickMaterial} geometry={snowmanStickGeo} />
-
-              {/* Top Hat (Black Voxel) */}
-              <mesh position={[0, 1.86, 0]} castShadow material={snowmanHatMaterial} geometry={snowmanHatBrimGeo} />
-              <mesh position={[0, 2.05, 0]} castShadow material={snowmanHatMaterial} geometry={snowmanHatTopGeo} />
-            </group>
-          );
+          return <LiveSnowmanObstacle key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} />;
         }
-
+        
         if (obs.type === 'rock-small') {
-          return (
-            <group key={obs.id} ref={obs.ref} position={[obs.x, obs.y, 0]}>
-              <mesh position={[0, 0.4, 0]} material={rockBaseMaterial} geometry={rockSmallGeo} />
-              <mesh position={[0, 0.7, 0]} material={rockSnowMaterial} geometry={rockSmallSnowGeo} />
-            </group>
-          );
+          return <RockSmallObstacle key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} />;
         }
 
         if (obs.type === 'firebox') {
-          return (
-            <group key={obs.id} ref={obs.ref} position={[obs.x, obs.y, 0]}>
-              <mesh material={fireboxMaterial} geometry={fireboxGeo} />
-            </group>
-          );
+          return <CampfireObstacle key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} />;
         }
 
         if (obs.type === 'powerup') {

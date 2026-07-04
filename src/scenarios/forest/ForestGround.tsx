@@ -1,5 +1,5 @@
 import { useFrame } from '@react-three/fiber';
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { useGameStore } from '../../store/gameStore';
 import { Mountains } from '../../components/environment/Mountains';
@@ -146,9 +146,14 @@ export function ForestGround() {
     }
     return data;
   }, []);
-
-
-
+  useEffect(() => {
+    return () => {
+      grassTexture.dispose();
+      dirtTexture.dispose();
+      trunkTexture.dispose();
+      leavesTexture.dispose();
+    };
+  }, [grassTexture, dirtTexture, trunkTexture, leavesTexture]);
   useFrame((state, delta) => {
 
     if (status !== 'playing' && status !== 'menu') return;
