@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { useGameStore } from '../../store/gameStore';
 import { ObstacleData, ObstacleType, PowerupType } from '../types';
 import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition, isBirdEligible } from '../helpers';
+import { VoxelEgg } from '../../components/VoxelEgg';
 
 // Reusable static materials
 const deadWoodMaterial = new THREE.MeshStandardMaterial({ color: '#57534e', roughness: 0.95 }); // Lighter grey/brown for visibility
@@ -311,6 +312,20 @@ export const SwampObstacles = forwardRef<ObstacleData[]>((props, ref) => {
   const lastInitializedGameId = useRef<number | null>(null);
 
   const generateObstacleInSlot = (slot: ObstacleData, x: number): ObstacleData => {
+    // Intercept egg spawning if flagged by the score system
+    const store = useGameStore.getState();
+    if (store.shouldSpawnEgg && store.pendingEggRarity) {
+      slot.type = 'egg';
+      slot.x = x;
+      slot.y = 0.35;
+      slot.eggRarity = store.pendingEggRarity;
+      slot.powerupType = undefined;
+      
+      // Reset the spawning flags in the store
+      useGameStore.setState({ shouldSpawnEgg: false, pendingEggRarity: null });
+      return slot;
+    }
+
     const globalObstacle = tryGenerateGlobalObstacle();
     
     if (globalObstacle) {
@@ -503,6 +518,9 @@ export const SwampObstacles = forwardRef<ObstacleData[]>((props, ref) => {
         }
         if (obs.type === 'powerup') {
           return <PowerupBox key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} type={obs.powerupType} />;
+        }
+        if (obs.type === 'egg') {
+          return <VoxelEgg key={obs.id} ref={obs.ref as any} rarity={obs.eggRarity || 'common'} x={obs.x} y={obs.y} />;
         }
         return null;
       })}

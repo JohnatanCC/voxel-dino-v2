@@ -1,7 +1,7 @@
 import { ComponentType, Ref } from 'react';
 import * as THREE from 'three';
 
-export type ObstacleType = 'bird' | 'cactus-small' | 'cactus-large' | 'powerup' | 'stump-low' | 'stump-high' | 'puddle' | 'rock-large' | 'snowman' | 'rock-small' | 'firebox' | 'swamp-log' | 'swamp-fly' | 'skull' | 'croc' | 'tree-hole' | 'mummy';
+export type ObstacleType = 'bird' | 'cactus-small' | 'cactus-large' | 'powerup' | 'stump-low' | 'stump-high' | 'puddle' | 'rock-large' | 'snowman' | 'rock-small' | 'firebox' | 'swamp-log' | 'swamp-fly' | 'skull' | 'croc' | 'tree-hole' | 'mummy' | 'egg';
 export type PowerupType = 'wings' | 'super' | 'ghost' | 'jaw' | 'earth' | 'life';
 
 export const DINO_HITBOX_OFFSET = -0.15;
@@ -23,7 +23,8 @@ export const OBSTACLE_HITBOX_OFFSETS: Record<string, number> = {
   'croc': -0.2,
   'tree-hole': -0.2,
   'powerup': -0.1,
-  'mummy': -0.15
+  'mummy': -0.15,
+  'egg': -0.15
 };
 
 export interface ObstacleData {
@@ -32,6 +33,7 @@ export interface ObstacleData {
   x: number;
   y: number;
   powerupType?: PowerupType;
+  eggRarity?: 'common' | 'rare' | 'ultraRare';
   ref: React.RefObject<THREE.Group | null>;
 }
 

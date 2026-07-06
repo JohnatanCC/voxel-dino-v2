@@ -1,7 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { forwardRef, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { useGameStore } from "../store/gameStore";
+import { useGameStore, SKINS } from "../store/gameStore";
 import { playJumpSound } from "../utils/audio";
 import { spawnParticles } from "./VFXRenderer";
 
@@ -34,8 +34,8 @@ function DustParticles({ active, speed }: { active: boolean; speed: number }) {
   return <group ref={group} />;
 }
 
-export const Dino = forwardRef<THREE.Group>((props, ref) => {
-  const { status, gameId, dinoColor, activePowerup } = useGameStore();
+export const Dino = forwardRef<THREE.Group, { previewMode?: boolean; skinId?: string }>(({ previewMode = false, skinId }, ref) => {
+  const { status, gameId, dinoColor, activePowerup, equippedSkin } = useGameStore();
 
   const innerRef = useRef<THREE.Group>(null);
   const leftLegRef = useRef<THREE.Mesh>(null);
@@ -47,9 +47,23 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
   const wingLeftRef = useRef<THREE.Mesh>(null);
   const wingRightRef = useRef<THREE.Mesh>(null);
   const lowerJawRef = useRef<THREE.Mesh>(null);
+  const tail1Ref = useRef<THREE.Group>(null);
+  const tail2Ref = useRef<THREE.Group>(null);
+  const tail3Ref = useRef<THREE.Group>(null);
+
+  const activeSkinId = skinId || equippedSkin;
 
   const dinoMaterial = useRef(
     new THREE.MeshStandardMaterial({ roughness: 1.0, bumpScale: 0.2 }),
+  ).current;
+  const spotsMaterial = useRef(
+    new THREE.MeshStandardMaterial({ roughness: 1.0 }),
+  ).current;
+  const spikesMaterial = useRef(
+    new THREE.MeshStandardMaterial({ roughness: 1.0 }),
+  ).current;
+  const collarMaterial = useRef(
+    new THREE.MeshStandardMaterial({ roughness: 1.0 }),
   ).current;
 
   const velocity = useRef(0);
@@ -75,6 +89,7 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
   }, [ref]);
 
   useEffect(() => {
+    if (previewMode) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       const state = useGameStore.getState();
       if (state.status !== "playing") return;
@@ -162,31 +177,70 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
   };
 
   useEffect(() => {
+    if (previewMode) return;
     if (status === "playing" || status === "menu") {
       resetDino();
     }
   }, [gameId]);
 
   useEffect(() => {
+    if (previewMode) return;
     if (status === "menu") {
       resetDino();
     }
   }, [status]);
 
    useFrame((state, delta) => {
+    // Intelligent swaying kitsune tails animation
+    if (activeSkinId === 'dino-kitsune') {
+      const time = state.clock.getElapsedTime();
+      if (tail1Ref.current) {
+        tail1Ref.current.rotation.y = Math.sin(time * 3) * 0.15;
+        tail1Ref.current.rotation.z = Math.cos(time * 2.5) * 0.08;
+      }
+      if (tail2Ref.current) {
+        tail2Ref.current.rotation.y = 0.4 + Math.sin(time * 3.3 + 1.2) * 0.12;
+        tail2Ref.current.rotation.z = Math.sin(time * 2.7 + 0.6) * 0.08;
+      }
+      if (tail3Ref.current) {
+        tail3Ref.current.rotation.y = -0.4 + Math.sin(time * 2.8 - 1.2) * 0.12;
+        tail3Ref.current.rotation.z = Math.cos(time * 2.9 - 0.6) * 0.08;
+      }
+    }
+
     const storeState = useGameStore.getState();
     const scenario = storeState.scenario;
     const coldTimer = storeState.coldTimer;
-    const p = storeState.activePowerup;
+    const p = previewMode ? "none" : storeState.activePowerup;
+
+    // Load active skin configs
+    const skin = SKINS.find(s => s.id === activeSkinId) || SKINS[0];
+
+    let base = skin.baseColor;
+    let spots = skin.spotsColor;
+    let spikes = skin.spikesColor;
+    let collar = skin.collarColor;
+
+    if (skin.isRainbow) {
+       const time = state.clock.getElapsedTime();
+       const rainbowColor = new THREE.Color().setHSL((time * 0.5) % 1, 0.9, 0.55);
+       base = '#' + rainbowColor.getHexString();
+       spots = '#' + new THREE.Color().setHSL((time * 0.5 + 0.3) % 1, 0.9, 0.5).getHexString();
+       spikes = '#' + new THREE.Color().setHSL((time * 0.5 + 0.6) % 1, 0.9, 0.4).getHexString();
+       collar = '#ffffff';
+    }
 
     if (p === 'super') {
        dinoMaterial.emissive.setHSL((state.clock.getElapsedTime() * 2) % 1, 1, 0.5);
        dinoMaterial.emissiveIntensity = 1.0;
        dinoMaterial.color.set('#ffffff');
+       spotsMaterial.color.set(spots);
+       spikesMaterial.color.set(spikes);
+       collarMaterial.color.set(collar);
     } else {
-       if (scenario === 'snow') {
+       if (scenario === 'snow' && !previewMode) {
           const frostFactor = Math.max(0, 1.0 - (coldTimer / 45));
-          const baseColor = new THREE.Color(dinoColor);
+          const baseColor = new THREE.Color(base);
           const frostColor = new THREE.Color('#38bdf8');
           baseColor.lerp(frostColor, frostFactor);
           dinoMaterial.color.copy(baseColor);
@@ -194,14 +248,20 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
           const iceEmissive = new THREE.Color('#0ea5e9');
           dinoMaterial.emissive.copy(iceEmissive);
           dinoMaterial.emissiveIntensity = frostFactor * 0.8;
+          spotsMaterial.color.set(spots);
+          spikesMaterial.color.set(spikes);
+          collarMaterial.color.set(collar);
        } else {
           dinoMaterial.emissive.set('#000000');
           dinoMaterial.emissiveIntensity = 1.0;
-          dinoMaterial.color.set(dinoColor);
+          dinoMaterial.color.set(base);
+          spotsMaterial.color.set(spots);
+          spikesMaterial.color.set(spikes);
+          collarMaterial.color.set(collar);
        }
     }
     
-    const isEating = performance.now() < useGameStore.getState().eatingUntil;
+    const isEating = !previewMode && performance.now() < useGameStore.getState().eatingUntil;
     if (lowerJawRef.current) {
        if (isEating) {
           lowerJawRef.current.rotation.z = -Math.abs(Math.sin(state.clock.getElapsedTime() * 15)) * 0.45;
@@ -229,7 +289,29 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
        }
     }
 
-    
+    if (previewMode) {
+      if (innerRef.current) {
+        innerRef.current.rotation.y = state.clock.getElapsedTime() * 0.8;
+        innerRef.current.position.set(0, -0.6, 0);
+        
+        if (leftLegRef.current) {
+          leftLegRef.current.rotation.z = 0;
+          leftLegRef.current.position.y = 0.7;
+        }
+        if (rightLegRef.current) {
+          rightLegRef.current.rotation.z = 0;
+          rightLegRef.current.position.y = 0.7;
+        }
+        if (leftArmRef.current) leftArmRef.current.rotation.z = 0;
+        if (rightArmRef.current) rightArmRef.current.rotation.z = 0;
+        if (headRef.current) {
+          headRef.current.rotation.z = 0;
+          headRef.current.position.set(0.5, 0, 0);
+        }
+        if (lowerJawRef.current) lowerJawRef.current.rotation.z = 0;
+      }
+      return;
+    }
 
     if (earthCooldown.current > 0) earthCooldown.current -= delta;
 
@@ -536,168 +618,176 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
     }
   });
 
-  const isGhost = activePowerup === "ghost";
-  useEffect(() => {
-    dinoMaterial.transparent = isGhost;
-    dinoMaterial.opacity = isGhost ? 0.4 : 1.0;
-  }, [isGhost, dinoMaterial]);
+    const isGhost = activePowerup === "ghost";
+    // Transparency controls are handled in useFrame loop
+    
+    return (
+      <group>
+        {!previewMode && (
+          <DustParticles
+            active={status === "playing" && isGrounded.current}
+            speed={useGameStore.getState().speed}
+          />
+        )}
+        <group ref={innerRef} position={[previewMode ? 0 : DINO_X, previewMode ? -0.6 : 0, 0]} scale={previewMode ? 0.65 : 0.7}>
+          {/* Hitbox */}
+          <group ref={hitboxRef} position={[-0.1, 1.2, 0]}>
+             <mesh visible={false}>
+               <boxGeometry args={[1.2, 1.2, 0.8]} />
+             </mesh>
+          </group>
+  
+          {/* Main Body */}
+          <mesh
+            position={[-0.1, 1.2, 0]}
+            castShadow
+            receiveShadow
+          >
+            <boxGeometry args={[1.2, 1.0, 0.8]} />
+            <primitive object={dinoMaterial} attach="material" />
+          </mesh>
+  
+          {/* Texture Details (Spots) */}
+          <mesh position={[0.2, 1.6, 0.41]} castShadow={!isGhost}>
+            <boxGeometry args={[0.2, 0.2, 0.05]} />
+            <primitive object={spotsMaterial} attach="material" />
+          </mesh>
+          <mesh position={[-0.3, 1.4, 0.41]} castShadow={!isGhost}>
+            <boxGeometry args={[0.3, 0.2, 0.05]} />
+            <primitive object={spotsMaterial} attach="material" />
+          </mesh>
+          <mesh position={[0, 0.9, 0.41]} castShadow={!isGhost}>
+            <boxGeometry args={[0.25, 0.15, 0.05]} />
+            <primitive object={spotsMaterial} attach="material" />
+          </mesh>
+          <mesh position={[0.2, 1.6, -0.41]} castShadow={!isGhost}>
+            <boxGeometry args={[0.2, 0.2, 0.05]} />
+            <primitive object={spotsMaterial} attach="material" />
+          </mesh>
+          <mesh position={[-0.3, 1.4, -0.41]} castShadow={!isGhost}>
+            <boxGeometry args={[0.3, 0.2, 0.05]} />
+            <primitive object={spotsMaterial} attach="material" />
+          </mesh>
+          <mesh position={[0, 0.9, -0.41]} castShadow={!isGhost}>
+            <boxGeometry args={[0.25, 0.15, 0.05]} />
+            <primitive object={spotsMaterial} attach="material" />
+          </mesh>
+  
+          {/* Spikes */}
+          <mesh
+            position={[-0.1, 1.9, 0]}
+            castShadow={!isGhost}
+            receiveShadow={!isGhost}
+          >
+            <boxGeometry args={[0.3, 0.3, 0.2]} />
+            <primitive object={spikesMaterial} attach="material" />
+          </mesh>
+          <mesh
+            position={[-0.6, 1.8, 0]}
+            castShadow={!isGhost}
+            receiveShadow={!isGhost}
+          >
+            <boxGeometry args={[0.3, 0.3, 0.2]} />
+            <primitive object={spikesMaterial} attach="material" />
+          </mesh>
+          <mesh
+            position={[-1.0, 1.5, 0]}
+            castShadow={!isGhost}
+            receiveShadow={!isGhost}
+          >
+            <boxGeometry args={[0.3, 0.3, 0.2]} />
+            <primitive object={spikesMaterial} attach="material" />
+          </mesh>
+  
+          {/* Tail */}
+          {activeSkinId !== 'dino-kitsune' ? (
+            <>
+              <mesh
+                position={[-1.0, 1.0, 0]}
+                castShadow={!isGhost}
+                receiveShadow={!isGhost}
+              >
+                <boxGeometry args={[0.7, 0.7, 0.7]} />
+                <primitive object={dinoMaterial} attach="material" />
+              </mesh>
+              <mesh
+                position={[-1.5, 0.8, 0]}
+                castShadow={!isGhost}
+                receiveShadow={!isGhost}
+              >
+                <boxGeometry args={[0.6, 0.4, 0.4]} />
+                <primitive object={dinoMaterial} attach="material" />
+              </mesh>
+            </>
+          ) : (
+            // 3 Swaying Kitsune Tails (white with glowing cyan tips) - scaled up for fluffiness
+            <group position={[-0.7, 1.0, 0]}>
+              {/* Tail 1 (Center) */}
+              <group ref={tail1Ref}>
+                <mesh position={[-0.4, 0.1, 0]} castShadow={!isGhost}>
+                  <boxGeometry args={[0.7, 0.7, 0.7]} />
+                  <primitive object={dinoMaterial} attach="material" />
+                </mesh>
+                <mesh position={[-1.0, 0.4, 0]} castShadow={!isGhost}>
+                  <boxGeometry args={[0.9, 0.9, 0.9]} />
+                  <primitive object={dinoMaterial} attach="material" />
+                </mesh>
+                <mesh position={[-1.6, 0.7, 0]} castShadow={!isGhost}>
+                  <boxGeometry args={[0.6, 0.6, 0.6]} />
+                  <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2.0} />
+                </mesh>
+              </group>
 
-  return (
-    <group>
-      <DustParticles
-        active={status === "playing" && isGrounded.current}
-        speed={useGameStore.getState().speed}
-      />
-      <group ref={innerRef} position={[DINO_X, 0, 0]} scale={0.7}>
-        {/* Hitbox */}
-        <group ref={hitboxRef} position={[-0.1, 1.2, 0]}>
-           <mesh visible={false}>
-             <boxGeometry args={[1.2, 1.2, 0.8]} />
-           </mesh>
-        </group>
+              {/* Tail 2 (Left) */}
+              <group ref={tail2Ref}>
+                <mesh position={[-0.4, 0.1, 0.25]} castShadow={!isGhost}>
+                  <boxGeometry args={[0.7, 0.7, 0.7]} />
+                  <primitive object={dinoMaterial} attach="material" />
+                </mesh>
+                <mesh position={[-1.0, 0.4, 0.5]} castShadow={!isGhost}>
+                  <boxGeometry args={[0.9, 0.9, 0.9]} />
+                  <primitive object={dinoMaterial} attach="material" />
+                </mesh>
+                <mesh position={[-1.6, 0.7, 0.75]} castShadow={!isGhost}>
+                  <boxGeometry args={[0.6, 0.6, 0.6]} />
+                  <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2.0} />
+                </mesh>
+              </group>
 
-        {/* Main Body */}
-        <mesh
-          position={[-0.1, 1.2, 0]}
-          castShadow
-          receiveShadow
-        >
-          <boxGeometry args={[1.2, 1.0, 0.8]} />
-          <primitive object={dinoMaterial} attach="material" />
-        </mesh>
-
-        {/* Texture Details (Spots) */}
-        <mesh position={[0.2, 1.6, 0.41]} castShadow={!isGhost}>
-          <boxGeometry args={[0.2, 0.2, 0.05]} />
-          <meshStandardMaterial
-            color="#3f3f46"
-            roughness={1.0}
-            transparent={isGhost}
-            opacity={isGhost ? 0.4 : 1.0}
-          />
-        </mesh>
-        <mesh position={[-0.3, 1.4, 0.41]} castShadow={!isGhost}>
-          <boxGeometry args={[0.3, 0.2, 0.05]} />
-          <meshStandardMaterial
-            color="#3f3f46"
-            roughness={1.0}
-            transparent={isGhost}
-            opacity={isGhost ? 0.4 : 1.0}
-          />
-        </mesh>
-        <mesh position={[0, 0.9, 0.41]} castShadow={!isGhost}>
-          <boxGeometry args={[0.25, 0.15, 0.05]} />
-          <meshStandardMaterial
-            color="#3f3f46"
-            roughness={1.0}
-            transparent={isGhost}
-            opacity={isGhost ? 0.4 : 1.0}
-          />
-        </mesh>
-        <mesh position={[0.2, 1.6, -0.41]} castShadow={!isGhost}>
-          <boxGeometry args={[0.2, 0.2, 0.05]} />
-          <meshStandardMaterial
-            color="#3f3f46"
-            roughness={1.0}
-            transparent={isGhost}
-            opacity={isGhost ? 0.4 : 1.0}
-          />
-        </mesh>
-        <mesh position={[-0.3, 1.4, -0.41]} castShadow={!isGhost}>
-          <boxGeometry args={[0.3, 0.2, 0.05]} />
-          <meshStandardMaterial
-            color="#3f3f46"
-            roughness={1.0}
-            transparent={isGhost}
-            opacity={isGhost ? 0.4 : 1.0}
-          />
-        </mesh>
-        <mesh position={[0, 0.9, -0.41]} castShadow={!isGhost}>
-          <boxGeometry args={[0.25, 0.15, 0.05]} />
-          <meshStandardMaterial
-            color="#3f3f46"
-            roughness={1.0}
-            transparent={isGhost}
-            opacity={isGhost ? 0.4 : 1.0}
-          />
-        </mesh>
-
-        {/* Spikes */}
-        <mesh
-          position={[-0.1, 1.9, 0]}
-          castShadow={!isGhost}
-          receiveShadow={!isGhost}
-        >
-          <boxGeometry args={[0.3, 0.3, 0.2]} />
-          <meshStandardMaterial
-            color="#333"
-            transparent={isGhost}
-            opacity={isGhost ? 0.4 : 1.0}
-          />
-        </mesh>
-        <mesh
-          position={[-0.6, 1.8, 0]}
-          castShadow={!isGhost}
-          receiveShadow={!isGhost}
-        >
-          <boxGeometry args={[0.3, 0.3, 0.2]} />
-          <meshStandardMaterial
-            color="#333"
-            transparent={isGhost}
-            opacity={isGhost ? 0.4 : 1.0}
-          />
-        </mesh>
-        <mesh
-          position={[-1.0, 1.5, 0]}
-          castShadow={!isGhost}
-          receiveShadow={!isGhost}
-        >
-          <boxGeometry args={[0.3, 0.3, 0.2]} />
-          <meshStandardMaterial
-            color="#333"
-            transparent={isGhost}
-            opacity={isGhost ? 0.4 : 1.0}
-          />
-        </mesh>
-
-        {/* Tail */}
-        <mesh
-          position={[-1.0, 1.0, 0]}
-          castShadow={!isGhost}
-          receiveShadow={!isGhost}
-        >
-          <boxGeometry args={[0.7, 0.7, 0.7]} />
-          <primitive object={dinoMaterial} attach="material" />
-        </mesh>
-        <mesh
-          position={[-1.5, 0.8, 0]}
-          castShadow={!isGhost}
-          receiveShadow={!isGhost}
-        >
-          <boxGeometry args={[0.6, 0.4, 0.4]} />
-          <primitive object={dinoMaterial} attach="material" />
-        </mesh>
-
-        {/* Collar */}
-        <mesh
-          position={[0.4, 1.8, 0]}
-          castShadow={!isGhost}
-          receiveShadow={!isGhost}
-          rotation={[0, 0, 0.2]}
-        >
-          <boxGeometry args={[0.6, 0.2, 0.9]} />
-          <meshStandardMaterial
-            color="#0ea5e9"
-            transparent={isGhost}
-            opacity={isGhost ? 0.4 : 1.0}
-          />
-        </mesh>
-        {/* Tag */}
-        <mesh
-          position={[0.7, 1.6, 0]}
-          castShadow={!isGhost}
-          receiveShadow={!isGhost}
-          rotation={[0, 0, 0.2]}
+              {/* Tail 3 (Right) */}
+              <group ref={tail3Ref}>
+                <mesh position={[-0.4, 0.1, -0.25]} castShadow={!isGhost}>
+                  <boxGeometry args={[0.7, 0.7, 0.7]} />
+                  <primitive object={dinoMaterial} attach="material" />
+                </mesh>
+                <mesh position={[-1.0, 0.4, -0.5]} castShadow={!isGhost}>
+                  <boxGeometry args={[0.9, 0.9, 0.9]} />
+                  <primitive object={dinoMaterial} attach="material" />
+                </mesh>
+                <mesh position={[-1.6, 0.7, -0.75]} castShadow={!isGhost}>
+                  <boxGeometry args={[0.6, 0.6, 0.6]} />
+                  <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2.0} />
+                </mesh>
+              </group>
+            </group>
+          )}
+  
+          {/* Collar */}
+          <mesh
+            position={[0.4, 1.8, 0]}
+            castShadow={!isGhost}
+            receiveShadow={!isGhost}
+            rotation={[0, 0, 0.2]}
+          >
+            <boxGeometry args={[0.6, 0.2, 0.9]} />
+            <primitive object={collarMaterial} attach="material" />
+          </mesh>
+          {/* Tag */}
+          <mesh
+            position={[0.7, 1.6, 0]}
+            castShadow={!isGhost}
+            receiveShadow={!isGhost}
+            rotation={[0, 0, 0.2]}
         >
           <boxGeometry args={[0.1, 0.3, 0.3]} />
           <meshStandardMaterial
@@ -720,14 +810,30 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
           </mesh>
 
           {/* Snout / Upper Jaw */}
-          <mesh
-            position={[1.1, 2.1, 0]}
-            castShadow={!isGhost}
-            receiveShadow={!isGhost}
-          >
-            <boxGeometry args={[0.6, 0.7, 0.9]} />
-            <primitive object={dinoMaterial} attach="material" />
-          </mesh>
+          {activeSkinId === 'dino-kitsune' ? (
+             <mesh
+               position={[1.2, 2.05, 0]}
+               castShadow={!isGhost}
+               receiveShadow={!isGhost}
+             >
+               <boxGeometry args={[0.8, 0.4, 0.5]} />
+               <primitive object={dinoMaterial} attach="material" />
+               {/* Fox black nose tip */}
+               <mesh position={[0.42, 0.08, 0]} castShadow={!isGhost}>
+                 <boxGeometry args={[0.1, 0.12, 0.12]} />
+                 <meshStandardMaterial color="#000000" />
+               </mesh>
+             </mesh>
+          ) : (
+             <mesh
+               position={[1.1, 2.1, 0]}
+               castShadow={!isGhost}
+               receiveShadow={!isGhost}
+             >
+               <boxGeometry args={[0.6, 0.7, 0.9]} />
+               <primitive object={dinoMaterial} attach="material" />
+             </mesh>
+          )}
 
           {/* Teeth (Upper Jaw) */}
           <mesh position={[1.2, 1.7, 0.4]} castShadow={!isGhost}>
@@ -747,16 +853,28 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
             <meshStandardMaterial color="white" />
           </mesh>
 
-          {/* Lower Jaw (slightly smaller) */}
-          <mesh
-            ref={lowerJawRef}
-            position={[1.0, 1.75, 0]}
-            castShadow={!isGhost}
-            receiveShadow={!isGhost}
-          >
-            <boxGeometry args={[0.5, 0.3, 0.8]} />
-            <primitive object={dinoMaterial} attach="material" />
-          </mesh>
+          {/* Lower Jaw */}
+          {activeSkinId === 'dino-kitsune' ? (
+             <mesh
+               ref={lowerJawRef}
+               position={[1.1, 1.85, 0]}
+               castShadow={!isGhost}
+               receiveShadow={!isGhost}
+             >
+               <boxGeometry args={[0.6, 0.2, 0.4]} />
+               <primitive object={dinoMaterial} attach="material" />
+             </mesh>
+          ) : (
+             <mesh
+               ref={lowerJawRef}
+               position={[1.0, 1.75, 0]}
+               castShadow={!isGhost}
+               receiveShadow={!isGhost}
+             >
+               <boxGeometry args={[0.5, 0.3, 0.8]} />
+               <primitive object={dinoMaterial} attach="material" />
+             </mesh>
+          )}
 
           {/* Horns */}
           <mesh
@@ -766,11 +884,7 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
             rotation={[0, 0, -0.3]}
           >
             <boxGeometry args={[0.2, 0.6, 0.2]} />
-            <meshStandardMaterial
-              color="#333"
-              transparent={isGhost}
-              opacity={isGhost ? 0.4 : 1.0}
-            />
+            <primitive object={spikesMaterial} attach="material" />
           </mesh>
           <mesh
             position={[0.1, 2.8, -0.35]}
@@ -779,11 +893,7 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
             rotation={[0, 0, -0.3]}
           >
             <boxGeometry args={[0.2, 0.6, 0.2]} />
-            <meshStandardMaterial
-              color="#333"
-              transparent={isGhost}
-              opacity={isGhost ? 0.4 : 1.0}
-            />
+            <primitive object={spikesMaterial} attach="material" />
           </mesh>
 
           {/* Strong Jaw Powerup Visual */}
@@ -801,40 +911,73 @@ export const Dino = forwardRef<THREE.Group>((props, ref) => {
           )}
 
           {/* Eye */}
-          <mesh position={[0.6, 2.4, 0.56]}>
-            <boxGeometry args={[0.2, 0.25, 0.05]} />
-            <meshBasicMaterial
-              color={useGameStore.getState().activePowerup === 'jaw' || useGameStore.getState().activePowerup === 'super' ? '#ef4444' : '#fef08a'}
-              transparent={isGhost}
-              opacity={isGhost ? 0.4 : 1.0}
-            />
-          </mesh>
-          {/* Pupil */}
-          <mesh position={[0.65, 2.4, 0.57]}>
-            <boxGeometry args={[0.1, 0.15, 0.05]} />
-            <meshBasicMaterial
-              color="black"
-              transparent={isGhost}
-              opacity={isGhost ? 0.4 : 1.0}
-            />
-          </mesh>
+          {activeSkinId === 'dino-kitsune' ? (
+             <group>
+               {/* Black eyeliner contour */}
+               <mesh position={[0.55, 2.4, 0.54]}>
+                 <boxGeometry args={[0.35, 0.35, 0.02]} />
+                 <meshStandardMaterial color="#000000" roughness={0.8} />
+               </mesh>
+               {/* Cyan glowing eye */}
+               <mesh position={[0.6, 2.4, 0.56]}>
+                 <boxGeometry args={[0.2, 0.25, 0.02]} />
+                 <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2.5} />
+               </mesh>
+             </group>
+          ) : (
+             <>
+               <mesh position={[0.6, 2.4, 0.56]}>
+                 <boxGeometry args={[0.2, 0.25, 0.05]} />
+                 <meshBasicMaterial
+                   color={useGameStore.getState().activePowerup === 'jaw' || useGameStore.getState().activePowerup === 'super' ? '#ef4444' : '#fef08a'}
+                   transparent={isGhost}
+                   opacity={isGhost ? 0.4 : 1.0}
+                 />
+               </mesh>
+               <mesh position={[0.65, 2.4, 0.57]}>
+                 <boxGeometry args={[0.1, 0.15, 0.05]} />
+                 <meshBasicMaterial
+                   color="black"
+                   transparent={isGhost}
+                   opacity={isGhost ? 0.4 : 1.0}
+                 />
+               </mesh>
+             </>
+          )}
 
-          <mesh position={[0.6, 2.4, -0.56]}>
-            <boxGeometry args={[0.2, 0.25, 0.05]} />
-            <meshBasicMaterial
-              color={useGameStore.getState().activePowerup === 'jaw' || useGameStore.getState().activePowerup === 'super' ? '#ef4444' : '#fef08a'}
-              transparent={isGhost}
-              opacity={isGhost ? 0.4 : 1.0}
-            />
-          </mesh>
-          <mesh position={[0.65, 2.4, -0.57]}>
-            <boxGeometry args={[0.1, 0.15, 0.05]} />
-            <meshBasicMaterial
-              color="black"
-              transparent={isGhost}
-              opacity={isGhost ? 0.4 : 1.0}
-            />
-          </mesh>
+          {activeSkinId === 'dino-kitsune' ? (
+             <group>
+               {/* Black eyeliner contour */}
+               <mesh position={[0.55, 2.4, -0.54]}>
+                 <boxGeometry args={[0.35, 0.35, 0.02]} />
+                 <meshStandardMaterial color="#000000" roughness={0.8} />
+               </mesh>
+               {/* Cyan glowing eye */}
+               <mesh position={[0.6, 2.4, -0.56]}>
+                 <boxGeometry args={[0.2, 0.25, 0.02]} />
+                 <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2.5} />
+               </mesh>
+             </group>
+          ) : (
+             <>
+               <mesh position={[0.6, 2.4, -0.56]}>
+                 <boxGeometry args={[0.2, 0.25, 0.05]} />
+                 <meshBasicMaterial
+                   color={useGameStore.getState().activePowerup === 'jaw' || useGameStore.getState().activePowerup === 'super' ? '#ef4444' : '#fef08a'}
+                   transparent={isGhost}
+                   opacity={isGhost ? 0.4 : 1.0}
+                 />
+               </mesh>
+               <mesh position={[0.65, 2.4, -0.57]}>
+                 <boxGeometry args={[0.1, 0.15, 0.05]} />
+                 <meshBasicMaterial
+                   color="black"
+                   transparent={isGhost}
+                   opacity={isGhost ? 0.4 : 1.0}
+                 />
+               </mesh>
+             </>
+          )}
         </group>
 
         {/* Wings Powerup Visual */}
