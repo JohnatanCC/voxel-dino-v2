@@ -154,25 +154,27 @@ export function Game() {
     lookAtTarget.current.lerp(targetLook, 0.1);
     state.camera.lookAt(lookAtTarget.current);
 
-    if (status !== 'playing') return;
+    if (status !== 'playing' && status !== 'gameover') return;
 
     useGameStore.getState().addGameTime(delta);
 
     // Update score: 100 points per second at base speed (10)
     const points = 100 * (useGameStore.getState().getCurrentSpeed() / 10) * delta;
     const oldScore = useGameStore.getState().score;
-    incrementScore(points);
+    if (status === 'playing') {
+      incrementScore(points);
+    }
     const newScore = oldScore + points;
 
     // Play milestone sound every 1000 points
-    if (Math.floor(newScore / 1000) > Math.floor(oldScore / 1000) && newScore > 100) {
+    if (status === 'playing' && Math.floor(newScore / 1000) > Math.floor(oldScore / 1000) && newScore > 100) {
       playScoreSound();
     }
     
     const { activePowerup, activatePowerup } = useGameStore.getState();
 
     // Collision Detection (Grace period of 10 points to avoid instant death on restart)
-    if (dinoRef.current && newScore > 10) {
+    if (status === 'playing' && dinoRef.current && newScore > 10) {
       dinoBox.current.setFromObject(dinoRef.current);
       
       // Make dino hitbox slightly smaller to be forgiving
@@ -351,8 +353,21 @@ export function Game() {
              if (tail.length > 0) {
                 const lastEgg = tail[tail.length - 1];
                 const eggColor = lastEgg.rarity === 'ultraRare' ? '#a855f7' : lastEgg.rarity === 'rare' ? '#3b82f6' : '#22c55e';
-               const parentX = dinoRef.current && dinoRef.current.parent ? dinoRef.current.parent.position.x : 2;
-               const parentY = dinoRef.current && dinoRef.current.parent ? dinoRef.current.parent.position.y : 0;
+                
+                let parentX = 2;
+                let parentY = 0;
+                if (dinoRef.current && dinoRef.current.parent) {
+                  const parent = dinoRef.current.parent;
+                  const visualGroup = parent.children.find(child => child !== dinoRef.current && child instanceof THREE.Group);
+                  if (visualGroup) {
+                    parentX = visualGroup.position.x;
+                    parentY = visualGroup.position.y;
+                  } else {
+                    parentX = dinoRef.current.position.x;
+                    parentY = dinoRef.current.position.y;
+                  }
+                }
+
                spawnParticles('explosion', [parentX, parentY + 0.5, 0], 25, eggColor);
                useGameStore.getState().loseEgg();
                useGameStore.getState().addFloatingText('-1 OVO', parentX, parentY + 1, 0, '#ef4444');

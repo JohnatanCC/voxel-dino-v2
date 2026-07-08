@@ -22,7 +22,7 @@ interface TrailingEggsProps {
 export function TrailingEggs({ dinoRef }: TrailingEggsProps) {
   const eggsInTail = useGameStore(s => s.eggsInTail);
   const status = useGameStore(s => s.status);
-  
+
   const groupRef = useRef<THREE.Group>(null);
   const yHistory = useRef<number[]>([]);
 
@@ -35,7 +35,11 @@ export function TrailingEggs({ dinoRef }: TrailingEggsProps) {
     // 1. Record Dino's current visual Y position
     let currentDinoY = 0;
     if (dinoRef.current && dinoRef.current.parent) {
-      currentDinoY = dinoRef.current.parent.position.y;
+      const parent = dinoRef.current.parent;
+      const visualGroup = parent.children.find(child => child !== dinoRef.current && child instanceof THREE.Group);
+      if (visualGroup) {
+        currentDinoY = visualGroup.position.y;
+      }
     }
 
     yHistory.current.unshift(currentDinoY);
@@ -59,7 +63,7 @@ export function TrailingEggs({ dinoRef }: TrailingEggsProps) {
 
     for (let i = 0; i < count; i++) {
       const child = children[i] as THREE.Group;
-      
+
       const layerIndex = Math.floor(i / 5);
       const idxInLayer = i % 5;
       const offset = LAYER_OFFSETS[idxInLayer];
@@ -68,7 +72,7 @@ export function TrailingEggs({ dinoRef }: TrailingEggsProps) {
       const targetX = DINO_X - (0.8 + layerIndex * 1.1) * scaleMultiplier + offset.x * scaleMultiplier;
       const targetY = dinoJumpY + offset.y * scaleMultiplier;
       const targetZ = offset.z * scaleMultiplier;
-      
+
       // Increased size to match the scale of the eggs in the scenario (default is 1.0)
       const targetScale = 1.0 * scaleMultiplier;
 
@@ -76,7 +80,7 @@ export function TrailingEggs({ dinoRef }: TrailingEggsProps) {
       child.position.x = THREE.MathUtils.lerp(child.position.x, targetX, 0.15);
       child.position.y = THREE.MathUtils.lerp(child.position.y, targetY, 0.2);
       child.position.z = THREE.MathUtils.lerp(child.position.z, targetZ, 0.15);
-      
+
       const currentScale = THREE.MathUtils.lerp(child.scale.x, targetScale, 0.15);
       child.scale.set(currentScale, currentScale, currentScale);
 
@@ -94,10 +98,10 @@ export function TrailingEggs({ dinoRef }: TrailingEggsProps) {
   return (
     <group ref={groupRef}>
       {eggsInTail.map((egg) => (
-        <VoxelEgg 
-          key={egg.id} 
-          rarity={egg.rarity} 
-          isCollected={true} 
+        <VoxelEgg
+          key={egg.id}
+          rarity={egg.rarity}
+          isCollected={true}
         />
       ))}
     </group>

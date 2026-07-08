@@ -473,48 +473,62 @@ export function UI() {
 
         {status === 'gameover' && (
           <motion.div key="gameover"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="absolute inset-0 flex items-center justify-center pointer-events-none z-20 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 flex flex-col items-center justify-between pointer-events-none z-20 p-6 sm:p-12 pb-16 sm:pb-24 select-none"
           >
-            <div className="text-center pointer-events-auto bg-white/95 backdrop-blur border-2 border-[#535353] p-6 sm:p-10 rounded shadow-[8px_8px_0px_#bcbcbc] max-w-[95vw] sm:max-w-sm w-full">
-              <h2 className="text-3xl sm:text-5xl game-font text-[#535353] mb-2 sm:mb-4 tracking-tighter">GAME OVER</h2>
-              <p className="text-[#535353] mb-2 sm:mb-3 game-font text-xs sm:text-sm opacity-70 uppercase tracking-widest">Distance: {Math.floor(score)}m</p>
-              
-              {/* Ovos e moedas convertidas */}
+            {/* Top section: Game Over Title & Stats */}
+            <div className="flex flex-col items-center mt-6 sm:mt-12 text-center">
+              <motion.h2 
+                initial={{ y: -50, scale: 0.5 }}
+                animate={{ y: 0, scale: 1 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 10 }}
+                className="text-5xl sm:text-7xl game-font text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-orange-500 to-amber-500 mb-2 drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] uppercase tracking-tighter"
+              >
+                GAME OVER
+              </motion.h2>
+              <p className="text-white font-bold text-base sm:text-lg game-font tracking-widest uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                Distance: {Math.floor(score)}m
+              </p>
+            </div>
+
+            {/* Middle section: Translucent Egg Conversion Stats */}
+            <div className="max-w-xs w-full pointer-events-auto my-4">
               {(currentRunEggs.common > 0 || currentRunEggs.rare > 0 || currentRunEggs.ultraRare > 0) ? (
-                 <div className="bg-amber-50 border-2 border-amber-300 p-3 rounded mb-4 text-[#535353] text-left text-xs sm:text-sm">
-                   <div className="font-bold mb-1 text-amber-700 uppercase tracking-wider text-center game-font">Conversão de Ovos</div>
-                   <ul className="space-y-0.5">
-                     {currentRunEggs.common > 0 && <li className="flex justify-between"><span>🟢 Comum ({currentRunEggs.common}):</span> <span className="font-bold">+{currentRunEggs.common * 50} 🪙</span></li>}
-                     {currentRunEggs.rare > 0 && <li className="flex justify-between"><span>🔵 Raro ({currentRunEggs.rare}):</span> <span className="font-bold">+{currentRunEggs.rare * 150} 🪙</span></li>}
-                     {currentRunEggs.ultraRare > 0 && <li className="flex justify-between"><span>🟣 Ultra Raro ({currentRunEggs.ultraRare}):</span> <span className="font-bold">+{currentRunEggs.ultraRare * 250} 🪙</span></li>}
+                 <div className="bg-black/60 border-2 border-amber-500/50 backdrop-blur-md p-4 rounded shadow-2xl text-white text-xs sm:text-sm">
+                   <div className="font-bold mb-2 text-amber-400 uppercase tracking-wider text-center game-font">Conversão de Ovos</div>
+                   <ul className="space-y-1">
+                     {currentRunEggs.common > 0 && <li className="flex justify-between"><span>🟢 Comum ({currentRunEggs.common}):</span> <span className="font-bold text-amber-300">+{currentRunEggs.common * 50} 🪙</span></li>}
+                     {currentRunEggs.rare > 0 && <li className="flex justify-between"><span>🔵 Raro ({currentRunEggs.rare}):</span> <span className="font-bold text-amber-300">+{currentRunEggs.rare * 150} 🪙</span></li>}
+                     {currentRunEggs.ultraRare > 0 && <li className="flex justify-between"><span>🟣 Ultra Raro ({currentRunEggs.ultraRare}):</span> <span className="font-bold text-amber-300">+{currentRunEggs.ultraRare * 250} 🪙</span></li>}
                    </ul>
-                   <hr className="border-amber-300 my-1.5" />
-                   <div className="flex justify-between font-extrabold text-amber-800 text-sm">
+                   <hr className="border-white/10 my-2" />
+                   <div className="flex justify-between font-extrabold text-amber-300 text-sm">
                      <span>Total Ganho:</span>
                      <span>+{currentRunEggs.common * 50 + currentRunEggs.rare * 150 + currentRunEggs.ultraRare * 250} 🪙</span>
                    </div>
                  </div>
               ) : (
-                 <p className="text-xs sm:text-sm text-gray-500 italic mb-4">Nenhum ovo coletado nesta corrida.</p>
+                 <p className="text-center text-xs sm:text-sm text-white/60 bg-black/40 backdrop-blur-sm p-3 border border-white/10 rounded italic">
+                   Nenhum ovo coletado nesta corrida.
+                 </p>
               )}
-              
-              <div className="flex flex-col gap-3 mt-2">
-                
+            </div>
+
+            {/* Bottom section: Action buttons side-by-side */}
+            <div className="flex flex-row gap-4 items-center justify-center pointer-events-auto max-w-md w-full px-4">
               <button
-                  onClick={startGame}
-                  className="bg-[#535353] text-white game-font py-2 sm:py-3 px-8 sm:px-10 voxel-btn text-lg sm:text-xl w-full"
-                >
-                  RETRY
-                </button>
-                <button
-                  onClick={() => useGameStore.getState().resetGame()}
-                  className="bg-transparent border-2 border-[#535353] text-[#535353] hover:bg-gray-100 transition-colors game-font py-2 sm:py-3 px-8 sm:px-10 voxel-btn text-lg sm:text-xl w-full"
-                >
-                  MENU
-                </button>
-              </div>
+                onClick={startGame}
+                className="flex-1 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-white game-font py-3 sm:py-4 px-6 voxel-btn text-base sm:text-lg border-2 border-yellow-300 shadow-[0_4px_14px_rgba(245,158,11,0.4)] transition-all"
+              >
+                RETRY
+              </button>
+              <button
+                onClick={() => useGameStore.getState().resetGame()}
+                className="flex-1 bg-black/75 hover:bg-black/90 border-2 border-white/40 text-white transition-colors game-font py-3 sm:py-4 px-6 voxel-btn text-base sm:text-lg shadow-xl"
+              >
+                MENU
+              </button>
             </div>
           </motion.div>
         )}
@@ -815,6 +829,12 @@ export function UI() {
                                       if (cleanCoupon.toUpperCase() === 'EXCLUSIVEPRIDE#0507D') {
                                          setSelectedSkinId('dino-kitsune');
                                          useGameStore.getState().equipSkin('dino-kitsune');
+                                      } else if (['PATO', 'QUACK', 'DUCKDINO'].includes(cleanCoupon.toUpperCase())) {
+                                         setSelectedSkinId('dino-duck');
+                                         useGameStore.getState().equipSkin('dino-duck');
+                                      } else if (['JEFF', 'SHARK', 'SHARKDINO'].includes(cleanCoupon.toUpperCase())) {
+                                         setSelectedSkinId('dino-shark');
+                                         useGameStore.getState().equipSkin('dino-shark');
                                       } else {
                                          setSelectedSkinId('dino-rainbow');
                                          useGameStore.getState().equipSkin('dino-rainbow');

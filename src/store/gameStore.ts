@@ -42,7 +42,9 @@ export const SKINS: SkinConfig[] = [
   { id: 'dino-pink-free', name: 'T-Rex Quartz', rarity: 'common', price: 0, baseColor: '#ec4899', spotsColor: '#be185d', spikesColor: '#db2777', collarColor: '#5b21b6' },
   { id: 'dino-yellow-free', name: 'T-Rex Topázio', rarity: 'common', price: 0, baseColor: '#eab308', spotsColor: '#ca8a04', spikesColor: '#ca8a04', collarColor: '#ef4444' },
   { id: 'dino-kitsune', name: 'T-Rex Divino (Kitsune)', rarity: 'exclusive', price: 0, baseColor: '#ffffff', spotsColor: '#00a2ff', spikesColor: '#00a2ff', collarColor: '#0055ff' },
-  { id: 'dino-rainbow', name: 'T-Rex Cibernético', rarity: 'exclusive', price: 0, baseColor: '#ffffff', spotsColor: '#ffffff', spikesColor: '#000000', collarColor: '#a855f7', isRainbow: true }
+  { id: 'dino-rainbow', name: 'T-Rex Cibernético', rarity: 'exclusive', price: 0, baseColor: '#ffffff', spotsColor: '#ffffff', spikesColor: '#000000', collarColor: '#a855f7', isRainbow: true },
+  { id: 'dino-duck', name: 'Pato Divino (DuckDino)', rarity: 'exclusive', price: 0, baseColor: '#fde047', spotsColor: '#fb923c', spikesColor: '#78350f', collarColor: '#ef4444' },
+  { id: 'dino-shark', name: 'SharkDino (Jeff)', rarity: 'exclusive', price: 0, baseColor: '#3182ce', spotsColor: '#f7fafc', spikesColor: '#2b6cb0', collarColor: '#ec4899' }
 ];
 
 interface GameState {
@@ -264,6 +266,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   }),
   getCurrentSpeed: () => {
     const state = get();
+    if (state.status === 'gameover') return 0;
     let s = state.speed;
     if (performance.now() < state.mummySlowUntil) s /= 1.5;
     else if (performance.now() < state.slowUntil) s *= 0.5;
@@ -567,6 +570,22 @@ export const useGameStore = create<GameState>((set, get) => ({
       const state = get();
       if (state.ownedSkins.includes('dino-rainbow')) return true; // Already owned
       const newOwned = [...state.ownedSkins, 'dino-rainbow'];
+      localStorage.setItem('trex-owned-skins', JSON.stringify(newOwned));
+      set({ ownedSkins: newOwned });
+      return true;
+    }
+    if (cleanCode === 'PATO' || cleanCode === 'QUACK' || cleanCode === 'DUCKDINO') {
+      const state = get();
+      if (state.ownedSkins.includes('dino-duck')) return true; // Already owned
+      const newOwned = [...state.ownedSkins, 'dino-duck'];
+      localStorage.setItem('trex-owned-skins', JSON.stringify(newOwned));
+      set({ ownedSkins: newOwned });
+      return true;
+    }
+    if (cleanCode === 'JEFF' || cleanCode === 'SHARK' || cleanCode === 'SHARKDINO') {
+      const state = get();
+      if (state.ownedSkins.includes('dino-shark')) return true; // Already owned
+      const newOwned = [...state.ownedSkins, 'dino-shark'];
       localStorage.setItem('trex-owned-skins', JSON.stringify(newOwned));
       set({ ownedSkins: newOwned });
       return true;
