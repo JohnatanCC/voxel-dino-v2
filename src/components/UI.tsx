@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useGameStore } from '../store/gameStore';
+import { useGameStore, SKINS } from '../store/gameStore';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Camera, Settings, X } from 'lucide-react';
 import { playBackgroundMusic, stopBackgroundMusic, pauseBackgroundMusic } from '../utils/audio';
+import { Canvas } from '@react-three/fiber';
+import { Dino } from './Dino';
 
 function PowerupBar() {
   const [progress, setProgress] = useState(100);
@@ -35,6 +37,9 @@ export function UI() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobilePortrait, setIsMobilePortrait] = useState(false);
+  const [isShopOpen, setIsShopOpen] = useState(false);
+  const [selectedSkinId, setSelectedSkinId] = useState('dino-classic');
+  const [couponCode, setCouponCode] = useState('');
 
   useEffect(() => {
     const checkOrientation = () => {
@@ -71,7 +76,7 @@ export function UI() {
 
   
   
-  const { status, score, highScore, speed, startGame, cameraMode, setCameraMode, activePowerup, scenario, setScenario, difficulty, setDifficulty, lives, isTransitioning, transitionStartTime, gameTime, coldTimer, fogSettings, setFogDensity, dinoColor, setDinoColor, devMode, setDevMode } = useGameStore();
+  const { status, score, highScore, speed, startGame, cameraMode, setCameraMode, activePowerup, scenario, setScenario, difficulty, setDifficulty, lives, isTransitioning, transitionStartTime, gameTime, coldTimer, fogSettings, setFogDensity, dinoColor, setDinoColor, devMode, setDevMode, coins, ownedSkins, equippedSkin, currentRunEggs } = useGameStore();
 
   const vignetteColor = activePowerup === 'super' ? 'rgba(253, 224, 71, 0.3)' : 
                   activePowerup === 'jaw' ? 'rgba(239, 68, 68, 0.3)' : 
@@ -202,10 +207,23 @@ export function UI() {
               {lives <= 0 && <span>☠️</span>}
             </div>
             
-            {/* Scores */}
-            <div className="flex gap-3 opacity-80">
-              <span className="hidden sm:inline">HI {highScore.toString().padStart(5, '0')}</span>
-              <span>{Math.floor(score).toString().padStart(5, '0')}</span>
+            {/* Scores & Coins & Eggs */}
+            <div className="flex flex-col items-end gap-1 game-font">
+              <div className="flex gap-3 opacity-80">
+                <span className="hidden sm:inline">HI {highScore.toString().padStart(5, '0')}</span>
+                <span>{Math.floor(score).toString().padStart(5, '0')}</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs sm:text-sm font-bold opacity-90">
+                <span className="text-amber-500">🪙 {coins}</span>
+                {(currentRunEggs.common > 0 || currentRunEggs.rare > 0 || currentRunEggs.ultraRare > 0) && (
+                   <div className="flex items-center gap-1.5 bg-black/10 px-2 py-0.5 rounded backdrop-blur-sm">
+                     <span>🥚</span>
+                     {currentRunEggs.common > 0 && <span className="text-green-500 font-extrabold">{currentRunEggs.common}</span>}
+                     {currentRunEggs.rare > 0 && <span className="text-blue-500 font-extrabold">{currentRunEggs.rare}</span>}
+                     {currentRunEggs.ultraRare > 0 && <span className="text-purple-500 font-extrabold">{currentRunEggs.ultraRare}</span>}
+                   </div>
+                )}
+              </div>
             </div>
             
             {/* Pause Button */}
@@ -360,6 +378,14 @@ export function UI() {
               >
                 START
               </button>
+
+              {/* Loja Button */}
+              <button
+                onClick={() => setIsShopOpen(true)}
+                className="mt-2 sm:mt-3 bg-amber-500 text-white hover:bg-amber-400 hover:scale-105 active:scale-95 transition-all game-font py-1.5 sm:py-3 px-6 sm:px-10 rounded-full text-lg sm:text-xl shadow-[0_0_15px_rgba(0,0,0,0.2)]"
+              >
+                LOJA
+              </button>
               
               {/* Install PWA Button */}
               {deferredPrompt && (
@@ -440,18 +466,6 @@ export function UI() {
                     ><ChevronRight className="w-8 h-8" /></button>
                   </div>
                 </div>
-                
-                {/* Color Picker */}
-                <div className="flex flex-col items-center gap-2">
-                  <span className="game-font text-white/70 text-sm tracking-widest uppercase">Cor do Dino</span>
-                  <input
-                    type="color"
-                    value={useGameStore.getState().dinoColor}
-                    onChange={(e) => useGameStore.getState().setDinoColor(e.target.value)}
-                    className="w-12 h-12 rounded-full cursor-pointer border-2 border-white shadow-lg bg-transparent p-0 overflow-hidden"
-                    style={{ borderRadius: '50%', WebkitAppearance: 'none', border: '2px solid white' }}
-                  />
-                </div>
               </div>
             </div>
           </div>
@@ -459,28 +473,62 @@ export function UI() {
 
         {status === 'gameover' && (
           <motion.div key="gameover"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="absolute inset-0 flex items-center justify-center pointer-events-none z-20 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 flex flex-col items-center justify-between pointer-events-none z-20 p-6 sm:p-12 pb-16 sm:pb-24 select-none"
           >
-            <div className="text-center pointer-events-auto bg-white/95 backdrop-blur border-2 border-[#535353] p-6 sm:p-10 rounded shadow-[8px_8px_0px_#bcbcbc] max-w-[95vw] sm:max-w-sm w-full">
-              <h2 className="text-3xl sm:text-5xl game-font text-[#535353] mb-2 sm:mb-4 tracking-tighter">GAME OVER</h2>
-              <p className="text-[#535353] mb-4 sm:mb-6 game-font text-xs sm:text-sm opacity-70 uppercase tracking-widest">Distance: {Math.floor(score)}m</p>
-              <div className="flex flex-col gap-3 mt-2">
-                
+            {/* Top section: Game Over Title & Stats */}
+            <div className="flex flex-col items-center mt-6 sm:mt-12 text-center">
+              <motion.h2 
+                initial={{ y: -50, scale: 0.5 }}
+                animate={{ y: 0, scale: 1 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 10 }}
+                className="text-5xl sm:text-7xl game-font text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-orange-500 to-amber-500 mb-2 drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] uppercase tracking-tighter"
+              >
+                GAME OVER
+              </motion.h2>
+              <p className="text-white font-bold text-base sm:text-lg game-font tracking-widest uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                Distance: {Math.floor(score)}m
+              </p>
+            </div>
+
+            {/* Middle section: Translucent Egg Conversion Stats */}
+            <div className="max-w-xs w-full pointer-events-auto my-4">
+              {(currentRunEggs.common > 0 || currentRunEggs.rare > 0 || currentRunEggs.ultraRare > 0) ? (
+                 <div className="bg-black/60 border-2 border-amber-500/50 backdrop-blur-md p-4 rounded shadow-2xl text-white text-xs sm:text-sm">
+                   <div className="font-bold mb-2 text-amber-400 uppercase tracking-wider text-center game-font">Conversão de Ovos</div>
+                   <ul className="space-y-1">
+                     {currentRunEggs.common > 0 && <li className="flex justify-between"><span>🟢 Comum ({currentRunEggs.common}):</span> <span className="font-bold text-amber-300">+{currentRunEggs.common * 50} 🪙</span></li>}
+                     {currentRunEggs.rare > 0 && <li className="flex justify-between"><span>🔵 Raro ({currentRunEggs.rare}):</span> <span className="font-bold text-amber-300">+{currentRunEggs.rare * 150} 🪙</span></li>}
+                     {currentRunEggs.ultraRare > 0 && <li className="flex justify-between"><span>🟣 Ultra Raro ({currentRunEggs.ultraRare}):</span> <span className="font-bold text-amber-300">+{currentRunEggs.ultraRare * 250} 🪙</span></li>}
+                   </ul>
+                   <hr className="border-white/10 my-2" />
+                   <div className="flex justify-between font-extrabold text-amber-300 text-sm">
+                     <span>Total Ganho:</span>
+                     <span>+{currentRunEggs.common * 50 + currentRunEggs.rare * 150 + currentRunEggs.ultraRare * 250} 🪙</span>
+                   </div>
+                 </div>
+              ) : (
+                 <p className="text-center text-xs sm:text-sm text-white/60 bg-black/40 backdrop-blur-sm p-3 border border-white/10 rounded italic">
+                   Nenhum ovo coletado nesta corrida.
+                 </p>
+              )}
+            </div>
+
+            {/* Bottom section: Action buttons side-by-side */}
+            <div className="flex flex-row gap-4 items-center justify-center pointer-events-auto max-w-md w-full px-4">
               <button
-                  onClick={startGame}
-                  className="bg-[#535353] text-white game-font py-2 sm:py-3 px-8 sm:px-10 voxel-btn text-lg sm:text-xl w-full"
-                >
-                  RETRY
-                </button>
-                <button
-                  onClick={() => useGameStore.getState().resetGame()}
-                  className="bg-transparent border-2 border-[#535353] text-[#535353] hover:bg-gray-100 transition-colors game-font py-2 sm:py-3 px-8 sm:px-10 voxel-btn text-lg sm:text-xl w-full"
-                >
-                  MENU
-                </button>
-              </div>
+                onClick={startGame}
+                className="flex-1 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-white game-font py-3 sm:py-4 px-6 voxel-btn text-base sm:text-lg border-2 border-yellow-300 shadow-[0_4px_14px_rgba(245,158,11,0.4)] transition-all"
+              >
+                RETRY
+              </button>
+              <button
+                onClick={() => useGameStore.getState().resetGame()}
+                className="flex-1 bg-black/75 hover:bg-black/90 border-2 border-white/40 text-white transition-colors game-font py-3 sm:py-4 px-6 voxel-btn text-base sm:text-lg shadow-xl"
+              >
+                MENU
+              </button>
             </div>
           </motion.div>
         )}
@@ -605,6 +653,219 @@ export function UI() {
           }}
         />
       )}
+
+      {/* Shop Overlay Panel */}
+      <AnimatePresence>
+        {isShopOpen && (
+          <motion.div
+            key="shop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-6 pointer-events-auto"
+          >
+             <div className="bg-[#f7f7f7] border-4 border-[#535353] w-full max-w-5xl h-[90vh] md:h-[80vh] rounded-lg shadow-2xl flex flex-col p-4 text-[#535353] overflow-hidden">
+               {/* Shop Header */}
+               <div className="flex justify-between items-center border-b-4 border-[#535353] pb-3 mb-4">
+                 <h2 className="text-2xl sm:text-4xl game-font uppercase tracking-tight">Loja de Skins</h2>
+                 <div className="flex items-center gap-4">
+                   <div className="bg-white border-2 border-[#535353] px-3 py-1.5 rounded game-font font-bold text-sm sm:text-base text-amber-500">
+                     🪙 {coins} Moedas
+                   </div>
+                   <button 
+                     onClick={() => setIsShopOpen(false)}
+                     className="bg-red-500 text-white border-2 border-black hover:bg-red-600 p-1.5 rounded transition-colors"
+                   >
+                     <X className="w-5 h-5" />
+                   </button>
+                 </div>
+               </div>
+
+               {/* Shop Body */}
+               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 flex-1 overflow-hidden">
+                 {/* Left Column: Skins list */}
+                 <div className="md:col-span-7 flex flex-col overflow-hidden">
+                   <div className="grid grid-cols-2 gap-3 overflow-y-auto max-h-full pr-1.5 flex-1">
+                     {SKINS.map((skin) => {
+                       const isOwned = ownedSkins.includes(skin.id);
+                       const isEquipped = equippedSkin === skin.id;
+                       
+                       // Card style
+                       const cardBorderColor = isEquipped ? 'border-amber-500 bg-amber-50/50' : 'border-[#535353] hover:border-amber-500 hover:bg-gray-50';
+                       const cardBorderWidth = isEquipped ? 'border-4' : 'border-2';
+                       
+                       return (
+                         <div 
+                           key={skin.id}
+                           onClick={() => setSelectedSkinId(skin.id)}
+                           className={`cursor-pointer rounded p-2 sm:p-3 flex flex-col items-center justify-between transition-all select-none relative ${cardBorderColor} ${cardBorderWidth}`}
+                         >
+                           {isEquipped && (
+                             <span className="absolute top-1 right-1 bg-amber-500 text-white text-[8px] sm:text-[10px] game-font px-1.5 py-0.5 rounded uppercase font-bold z-20">
+                               Equipado
+                             </span>
+                           )}
+                           
+                           {/* Skin Name */}
+                           <div className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-center line-clamp-1 mb-1">
+                             {skin.name}
+                           </div>
+                           
+                           {/* Mini 3D Preview */}
+                           <div className="w-full h-16 sm:h-20 bg-gray-100/50 rounded overflow-hidden relative border border-gray-200">
+                             <Canvas dpr={1} camera={{ position: [0, 1.1, 3.2], fov: 40 }} gl={{ antialias: false }}>
+                               <ambientLight intensity={1.5} />
+                               <directionalLight position={[2, 2, 2]} intensity={1.5} />
+                               <Dino previewMode={true} skinId={skin.id} />
+                             </Canvas>
+                           </div>
+                           
+                           {/* Price or status */}
+                           <div className="text-[9px] sm:text-[11px] game-font font-bold mt-2">
+                             {isOwned ? (
+                               <span className="text-green-600">ADQUIRIDO</span>
+                             ) : skin.rarity === 'exclusive' ? (
+                               <span className="text-purple-600">EXCLUSIVA</span>
+                             ) : (
+                               <span className="text-amber-600">🪙 {skin.price}</span>
+                             )}
+                           </div>
+                         </div>
+                       );
+                     })}
+                   </div>
+                 </div>
+
+                 {/* Right Column: Details & Actions */}
+                 <div className="md:col-span-5 border-t-4 md:border-t-0 md:border-l-4 border-dashed border-[#535353] pt-4 md:pt-0 pl-0 md:pl-4 flex flex-col justify-between overflow-y-auto">
+                   {(() => {
+                     const selectedSkin = SKINS.find(s => s.id === selectedSkinId) || SKINS[0];
+                     const isOwned = ownedSkins.includes(selectedSkin.id);
+                     const isEquipped = equippedSkin === selectedSkin.id;
+                     
+                     // Rarity badge color
+                     const badgeColor = 
+                       selectedSkin.rarity === 'exclusive' ? 'bg-purple-100 text-purple-800 border-purple-300' :
+                       selectedSkin.rarity === 'legendary' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                       selectedSkin.rarity === 'ultra-rare' ? 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300' :
+                       selectedSkin.rarity === 'rare' ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-gray-100 text-gray-800 border-gray-300';
+                     
+                     return (
+                       <div className="flex flex-col flex-1 justify-between gap-4">
+                         {/* Large Visual Preview */}
+                         <div className="flex flex-col items-center">
+                           <div className="w-full h-40 sm:h-48 bg-gray-200/50 rounded-lg overflow-hidden border-2 border-[#535353] relative">
+                             <Canvas camera={{ position: [0, 1.1, 3.5], fov: 40 }}>
+                               <ambientLight intensity={1.5} />
+                               <directionalLight position={[2, 2, 2]} intensity={1.5} />
+                               <Dino previewMode={true} skinId={selectedSkin.id} />
+                             </Canvas>
+                           </div>
+                           
+                           {/* Details */}
+                           <div className="mt-3 text-center w-full">
+                             <h3 className="text-xl sm:text-2xl game-font uppercase">{selectedSkin.name}</h3>
+                             <span className={`inline-block border text-[10px] sm:text-xs font-extrabold uppercase px-2.5 py-0.5 rounded-full mt-1.5 tracking-widest ${badgeColor}`}>
+                               {selectedSkin.rarity === 'ultra-rare' ? 'Ultra Rara' : selectedSkin.rarity}
+                             </span>
+                           </div>
+                         </div>
+                         
+                         {/* Action Buttons */}
+                         <div className="flex flex-col gap-3 mt-auto">
+                           {isOwned ? (
+                             <button
+                               disabled={isEquipped}
+                               onClick={() => {
+                                 useGameStore.getState().equipSkin(selectedSkin.id);
+                               }}
+                               className={`w-full py-2.5 sm:py-3 game-font text-sm sm:text-base font-bold transition-all voxel-btn ${
+                                 isEquipped 
+                                   ? 'bg-amber-500 text-white cursor-default shadow-none pointer-events-none' 
+                                   : 'bg-[#535353] text-white hover:bg-black'
+                               }`}
+                             >
+                               {isEquipped ? 'EQUIPADO' : 'EQUIPAR'}
+                             </button>
+                           ) : selectedSkin.rarity === 'exclusive' ? (
+                             <div className="text-center bg-purple-50 border border-purple-200 p-2.5 rounded text-xs text-purple-700 italic">
+                               Esta skin é exclusiva e não pode ser comprada. Resgate usando um código promocional abaixo!
+                             </div>
+                           ) : (
+                             <button
+                               onClick={() => {
+                                 const success = useGameStore.getState().buySkin(selectedSkin.id);
+                                 if (success) {
+                                   useGameStore.getState().addFloatingText('COMPRADO!', 0, 5, 0, '#22c55e');
+                                 } else {
+                                   alert('Moedas insuficientes!');
+                                 }
+                               }}
+                               className="w-full py-2.5 sm:py-3 bg-amber-500 hover:bg-amber-400 text-white game-font text-sm sm:text-base font-bold transition-all voxel-btn"
+                             >
+                               COMPRAR - 🪙 {selectedSkin.price}
+                             </button>
+                           )}
+
+                           {/* Coupon Redeem Input */}
+                           <div className="border-t border-[#535353]/20 pt-3 mt-1 flex flex-col gap-1.5">
+                             <label className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase">Resgatar Código Especial:</label>
+                             <div className="flex gap-2">
+                               <input 
+                                 type="text" 
+                                 value={couponCode}
+                                 onChange={(e) => setCouponCode(e.target.value)}
+                                 placeholder="Código Especial"
+                                 className="flex-1 border-2 border-[#535353] px-2.5 py-1 sm:py-1.5 game-font text-xs bg-white rounded focus:outline-none placeholder-gray-400"
+                               />
+                               <button
+                                 onClick={() => {
+                                   if (!couponCode) return;
+                                   const cleanCoupon = couponCode.trim();
+                                   const ok = useGameStore.getState().redeemCode(cleanCoupon);
+                                   if (ok) {
+                                      useGameStore.getState().addFloatingText('CÓDIGO ACEITO!', 0, 5, 0, '#a855f7');
+                                      setCouponCode('');
+                                      if (cleanCoupon.toUpperCase() === 'EXCLUSIVEPRIDE#0507D') {
+                                         setSelectedSkinId('dino-kitsune');
+                                         useGameStore.getState().equipSkin('dino-kitsune');
+                                      } else if (['PATO', 'QUACK', 'DUCKDINO'].includes(cleanCoupon.toUpperCase())) {
+                                         setSelectedSkinId('dino-duck');
+                                         useGameStore.getState().equipSkin('dino-duck');
+                                      } else if (['JEFF', 'SHARK', 'SHARKDINO'].includes(cleanCoupon.toUpperCase())) {
+                                         setSelectedSkinId('dino-shark');
+                                         useGameStore.getState().equipSkin('dino-shark');
+                                      } else {
+                                         setSelectedSkinId('dino-rainbow');
+                                         useGameStore.getState().equipSkin('dino-rainbow');
+                                      }
+                                   } else {
+                                      alert('Código inválido ou já resgatado!');
+                                   }
+                                 }}
+                                 className="bg-[#535353] text-white hover:bg-black px-3.5 py-1 sm:py-1.5 rounded game-font text-xs font-bold transition-colors"
+                               >
+                                 OK
+                               </button>
+                             </div>
+                           </div>
+
+                           {/* Egg Converter Conversion rate explanation box */}
+                           <div className="bg-gray-100 border border-gray-300 p-2.5 rounded text-[10px] text-gray-500 leading-tight">
+                             <div className="font-bold text-gray-700 mb-0.5">🪙 RECOMPENSAS DE OVOS:</div>
+                             <div>🟢 Comum = 50 moedas | 🔵 Raro = 150 moedas | 🟣 Ultra Raro = 250 moedas</div>
+                             <div className="mt-1 italic">Os ovos coletados em jogo são automaticamente convertidos no final da corrida!</div>
+                           </div>
+                         </div>
+                       </div>
+                     );
+                   })()}
+                 </div>
+               </div>
+             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

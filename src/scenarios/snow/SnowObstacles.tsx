@@ -4,6 +4,7 @@ import { useGameStore } from '../../store/gameStore';
 import { ObstacleData, ObstacleType, PowerupType } from '../types';
 import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition } from '../helpers';
 import * as THREE from 'three';
+import { VoxelEgg } from '../../components/VoxelEgg';
 
 export type SnowObstacleType = 'rock-large' | 'snowman' | 'rock-small' | 'powerup' | 'firebox';
 
@@ -292,11 +293,19 @@ export const SnowObstacles = forwardRef<ObstacleData[]>((props, ref) => {
       if (inactiveSlot) {
         // Decide obstacle type: 10% chance for powerup, 30% campfire, 60% standard obstacles
         const rand = Math.random();
-        let chosenType: SnowObstacleType = 'rock-large';
+        let chosenType: SnowObstacleType | 'egg' = 'rock-large';
         let spawnY = 0;
         let chosenPowerup: PowerupType | undefined;
+        let chosenEggRarity: 'common' | 'rare' | 'ultraRare' | undefined;
 
-        if (rand < 0.1) {
+        const store = useGameStore.getState();
+        if (store.shouldSpawnEgg && store.pendingEggRarity) {
+          chosenType = 'egg';
+          spawnY = 0.35;
+          chosenPowerup = undefined;
+          chosenEggRarity = store.pendingEggRarity;
+          useGameStore.setState({ shouldSpawnEgg: false, pendingEggRarity: null });
+        } else if (rand < 0.1) {
           chosenType = 'powerup';
           spawnY = Math.random() > 0.5 ? 2.5 : 1.2; // high or low
           const powerupOpts: PowerupType[] = ['wings', 'super', 'ghost', 'jaw', 'earth', 'life'];
@@ -320,6 +329,7 @@ export const SnowObstacles = forwardRef<ObstacleData[]>((props, ref) => {
 
         inactiveSlot.type = chosenType as any;
         inactiveSlot.powerupType = chosenPowerup;
+        inactiveSlot.eggRarity = chosenEggRarity;
         inactiveSlot.x = SPAWN_DISTANCE + nextSpawnX.current;
         inactiveSlot.y = spawnY;
 
@@ -359,6 +369,10 @@ export const SnowObstacles = forwardRef<ObstacleData[]>((props, ref) => {
 
         if (obs.type === 'powerup') {
           return <PowerupBox key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} type={obs.powerupType} />;
+        }
+
+        if (obs.type === 'egg') {
+          return <VoxelEgg key={obs.id} ref={obs.ref as any} rarity={obs.eggRarity || 'common'} x={obs.x} y={obs.y} />;
         }
 
         return null;

@@ -8,6 +8,7 @@ import { VFXRenderer, spawnParticles } from './VFXRenderer';
 import { Text, OrbitControls } from '@react-three/drei';
 import { SCENARIOS } from '../scenarios';
 import { ObstacleData, DINO_HITBOX_OFFSET, OBSTACLE_HITBOX_OFFSETS } from '../scenarios/types';
+import { TrailingEggs } from './TrailingEggs';
 
 interface TransitionProps {
   scenarioKey: string;
@@ -153,25 +154,27 @@ export function Game() {
     lookAtTarget.current.lerp(targetLook, 0.1);
     state.camera.lookAt(lookAtTarget.current);
 
-    if (status !== 'playing') return;
+    if (status !== 'playing' && status !== 'gameover') return;
 
     useGameStore.getState().addGameTime(delta);
 
     // Update score: 100 points per second at base speed (10)
     const points = 100 * (useGameStore.getState().getCurrentSpeed() / 10) * delta;
     const oldScore = useGameStore.getState().score;
-    incrementScore(points);
+    if (status === 'playing') {
+      incrementScore(points);
+    }
     const newScore = oldScore + points;
 
     // Play milestone sound every 1000 points
-    if (Math.floor(newScore / 1000) > Math.floor(oldScore / 1000) && newScore > 100) {
+    if (status === 'playing' && Math.floor(newScore / 1000) > Math.floor(oldScore / 1000) && newScore > 100) {
       playScoreSound();
     }
     
     const { activePowerup, activatePowerup } = useGameStore.getState();
 
     // Collision Detection (Grace period of 10 points to avoid instant death on restart)
-    if (dinoRef.current && newScore > 10) {
+    if (status === 'playing' && dinoRef.current && newScore > 10) {
       dinoBox.current.setFromObject(dinoRef.current);
       
       // Make dino hitbox slightly smaller to be forgiving
@@ -190,6 +193,22 @@ export function Game() {
           obstacleBox.current.expandByScalar(hitboxOffset);
           
           if (dinoBox.current.intersectsBox(obstacleBox.current)) {
+            if (obs.type === 'egg' && obs.eggRarity) {
+              const rarityColor = obs.eggRarity === 'ultraRare' ? '#c084fc' : obs.eggRarity === 'rare' ? '#60a5fa' : '#4ade80';
+              spawnParticles('sparkle', [obs.x, obs.ref.current.position.y, 0], 20, rarityColor);
+              playScoreSound();
+              
+              const textLabel = obs.eggRarity === 'ultraRare' ? 'OVO ULTRA RARO!' : obs.eggRarity === 'rare' ? 'OVO RARO!' : 'OVO COMUM!';
+              const textColor = obs.eggRarity === 'ultraRare' ? '#a855f7' : obs.eggRarity === 'rare' ? '#3b82f6' : '#22c55e';
+              useGameStore.getState().addFloatingText(textLabel, obs.x, obs.ref.current.position.y + 1, 0, textColor);
+              
+              useGameStore.getState().collectEgg(obs.eggRarity);
+              
+              obs.x = -100;
+              obs.ref.current.position.y = -100;
+              continue;
+            }
+
             if (obs.type === 'powerup' && obs.powerupType) {
               spawnParticles('sparkle', [obs.x, obs.ref.current.position.y, 0], 20);
               
@@ -328,6 +347,32 @@ export function Game() {
             obs.x = -100;
             obs.ref.current.position.y = -100;
             useGameStore.getState().setInvincibleUntil(performance.now() + 1500); // 1.5 seconds of invincibility
+
+            // Penalidade de perda de ovo se tiver algum no rastro
+            const tail = useGameStore.getState().eggsInTail;
+             if (tail.length > 0) {
+                const lastEgg = tail[tail.length - 1];
+                const eggColor = lastEgg.rarity === 'ultraRare' ? '#a855f7' : lastEgg.rarity === 'rare' ? '#3b82f6' : '#22c55e';
+                
+                let parentX = 2;
+                let parentY = 0;
+                if (dinoRef.current && dinoRef.current.parent) {
+                  const parent = dinoRef.current.parent;
+                  const visualGroup = parent.children.find(child => child !== dinoRef.current && child instanceof THREE.Group);
+                  if (visualGroup) {
+                    parentX = visualGroup.position.x;
+                    parentY = visualGroup.position.y;
+                  } else {
+                    parentX = dinoRef.current.position.x;
+                    parentY = dinoRef.current.position.y;
+                  }
+                }
+
+               spawnParticles('explosion', [parentX, parentY + 0.5, 0], 25, eggColor);
+               useGameStore.getState().loseEgg();
+               useGameStore.getState().addFloatingText('-1 OVO', parentX, parentY + 1, 0, '#ef4444');
+            }
+
             useGameStore.getState().loseLife();
             
             if (useGameStore.getState().lives <= 0) {
@@ -350,6 +395,7 @@ export function Game() {
       <CameraController />
       <PowerupLight />
       <Dino ref={dinoRef} />
+      <TrailingEggs dinoRef={dinoRef} />
       {(() => {
         const activeScenario = SCENARIOS[scenario];
         const Ground = activeScenario.GroundComponent;
