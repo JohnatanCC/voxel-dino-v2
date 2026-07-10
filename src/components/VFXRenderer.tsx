@@ -16,6 +16,7 @@ interface ParticleData {
   maxLife: number;
   scale: number;
   color: THREE.Color;
+  type?: 'dust' | 'sparkle' | 'explosion' | 'absorb';
 }
 
 const particlesData: ParticleData[] = Array.from({ length: PARTICLE_COUNT }, () => ({
@@ -26,12 +27,13 @@ const particlesData: ParticleData[] = Array.from({ length: PARTICLE_COUNT }, () 
   maxLife: 1,
   scale: 1,
   color: new THREE.Color(),
+  type: 'dust',
 }));
 
 let particleIndex = 0;
 
 export const spawnParticles = (
-  type: 'dust' | 'sparkle' | 'explosion',
+  type: 'dust' | 'sparkle' | 'explosion' | 'absorb',
   position: THREE.Vector3 | [number, number, number],
   count: number = 10,
   color?: string
@@ -39,6 +41,7 @@ export const spawnParticles = (
   for (let i = 0; i < count; i++) {
     const p = particlesData[particleIndex];
     p.active = true;
+    p.type = type;
     
     if (Array.isArray(position)) {
       p.position.set(position[0], position[1], position[2]);
@@ -73,6 +76,21 @@ export const spawnParticles = (
       p.life = p.maxLife = Math.random() * 0.6 + 0.4;
       p.scale = Math.random() * 0.5 + 0.2;
       p.color.copy(color ? new THREE.Color(color) : EXPLOSION_COLOR);
+    } else if (type === 'absorb') {
+      // Spawn in a sphere/circle around position
+      const radius = 2.5 + Math.random() * 1.5;
+      const angle = Math.random() * Math.PI * 2;
+      const offsetHeight = (Math.random() - 0.5) * 2;
+      
+      p.position.set(
+        p.position.x + Math.cos(angle) * radius,
+        p.position.y + offsetHeight,
+        p.position.z + Math.sin(angle) * radius
+      );
+      p.velocity.set(0, 0, 0);
+      p.life = p.maxLife = Math.random() * 1.5 + 1.0;
+      p.scale = Math.random() * 0.22 + 0.08;
+      p.color.copy(color ? new THREE.Color(color) : SPARKLE_COLOR);
     }
 
     particleIndex = (particleIndex + 1) % PARTICLE_COUNT;
@@ -119,12 +137,22 @@ export function VFXRenderer() {
         }
 
         // Physics
-        p.velocity.y -= 0.5 * delta; // Gravity
-        p.position.add(p.velocity);
-        
-        // Move backwards with world
-        if (useGameStore.getState().status === 'playing') {
-          p.position.x -= useGameStore.getState().getCurrentSpeed() * delta;
+        if (p.type === 'absorb') {
+          // Gently attract to player target at x = 2
+          const targetX = 2.0;
+          const targetY = 1.0;
+          const targetZ = 0.0;
+          p.position.x = THREE.MathUtils.lerp(p.position.x, targetX, 0.03);
+          p.position.y = THREE.MathUtils.lerp(p.position.y, targetY, 0.03);
+          p.position.z = THREE.MathUtils.lerp(p.position.z, targetZ, 0.03);
+        } else {
+          p.velocity.y -= 0.5 * delta; // Gravity
+          p.position.add(p.velocity);
+          
+          // Move backwards with world
+          if (useGameStore.getState().status === 'playing') {
+            p.position.x -= useGameStore.getState().getCurrentSpeed() * delta;
+          }
         }
 
         dummy.position.copy(p.position);

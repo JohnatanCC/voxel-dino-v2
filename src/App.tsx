@@ -36,6 +36,7 @@ function getFogValues(scenario: GameScenario, isSandstorm: boolean, density: Fog
 
 export default function App() {
   const status = useGameStore((state) => state.status);
+  const activePowerup = useGameStore((state) => state.activePowerup);
   const isSandstorm = useGameStore((state) => state.isSandstorm);
   const scenario = useGameStore((state) => state.scenario);
   const fogSettings = useGameStore((state) => state.fogSettings);
@@ -46,39 +47,49 @@ export default function App() {
   if (isSandstorm && scenario === 'desert') bgColor = '#d4a373';
 
   const fogDensity = fogSettings[scenario] || 'medium';
-  const { near: fogNear, far: fogFar } = getFogValues(scenario, isSandstorm, fogDensity);
+  let { near: fogNear, far: fogFar } = getFogValues(scenario, isSandstorm, fogDensity);
+  if (activePowerup === 'earth') {
+    fogNear *= 0.25;
+    fogFar *= 0.35;
+  }
 
   // Prevent default scrolling for game keys
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Alt') {
-        useGameStore.getState().setDevMode(false);
-      }
-      if (['Space', 'ArrowUp', 'ArrowDown', 'w', 's'].includes(e.key)) {
+    const handleKeys = (e: KeyboardEvent) => {
+      if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code) && status === 'playing') {
         e.preventDefault();
       }
     };
+    window.addEventListener('keydown', handleKeys);
+    return () => window.removeEventListener('keydown', handleKeys);
+  }, [status]);
 
-    window.addEventListener('keydown', handleKeyDown, { passive: false });
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  const canvasClassName = "absolute inset-0 w-full h-full z-0 transition-all duration-300";
 
   return (
-    <div className="w-full h-screen bg-game-bg text-game-text font-sans overflow-hidden flex flex-col relative">
+    <div className="w-full h-screen bg-[#1e293b] text-game-text font-sans overflow-hidden relative select-none">
       <UI />
       
-      <Canvas shadows={graphicsQuality !== 'low'} dpr={graphicsQuality === 'low' ? 1 : graphicsQuality === 'medium' ? 1.5 : 2} camera={{ position: [6, 4.5, 22], fov: 35 }} className="flex-1 w-full h-full relative z-0">
-        <color attach="background" args={[bgColor]} />
-        <fog attach="fog" args={[bgColor, fogNear, fogFar]} />
-        
-        <EnvironmentManager />
-        
-        {/* Soft fill light */}
-        <directionalLight position={[-10, 5, -10]} intensity={0.3} color="#93c5fd" />
-        <Suspense fallback={null}>
-          <Game />
-        </Suspense>
-      </Canvas>
+      <div className={canvasClassName}>
+        <Canvas 
+          key={graphicsQuality}
+          shadows={graphicsQuality !== 'low'} 
+          dpr={graphicsQuality === 'low' ? 1 : graphicsQuality === 'medium' ? 1.5 : 2} 
+          camera={{ position: [6, 4.5, 22], fov: 35 }} 
+          className="w-full h-full relative z-0"
+        >
+          <color attach="background" args={[bgColor]} />
+          <fog attach="fog" args={[bgColor, fogNear, fogFar]} />
+          
+          <EnvironmentManager />
+          
+          {/* Soft fill light */}
+          <directionalLight position={[-10, 5, -10]} intensity={0.3} color="#93c5fd" />
+          <Suspense fallback={null}>
+            <Game />
+          </Suspense>
+        </Canvas>
+      </div>
     </div>
   );
 }

@@ -336,21 +336,16 @@ export const SwampObstacles = forwardRef<ObstacleData[]>((props, ref) => {
       return slot;
     }
 
-    // Scenario-specific obstacles
-    const rand = Math.random();
-    let type: ObstacleType = 'stump-low';
+    // Scenario-specific obstacles based on current level configuration
+    const currentLevel = store.getCurrentLevel();
+    const allowed = currentLevel?.allowedObstacles || ['swamp-log', 'puddle'];
+    const type = allowed[Math.floor(Math.random() * allowed.length)];
     let y = 0;
 
-    const score = useGameStore.getState().score;
-    const birdThreshold = Math.max(0.55, 0.7 - (score / 60000));
-    
-    if (isBirdEligible() && rand > birdThreshold) {
-      type = 'bird';
+    if (type === 'bird') {
       y = 0.8 + Math.random() * 2.4;
-    } else if (rand > 0.45) {
-      type = 'croc';
-    } else {
-      type = 'stump-high';
+    } else if (type === 'swamp-fly') {
+      y = 1.0 + Math.random() * 1.5;
     }
 
     slot.type = type;
@@ -501,7 +496,7 @@ export const SwampObstacles = forwardRef<ObstacleData[]>((props, ref) => {
   return (
     <group>
       {pool.map(obs => {
-        if (obs.type === 'stump-low') {
+        if (obs.type === 'stump-low' || obs.type === 'swamp-log') {
           return <DeadTree key={obs.id} ref={obs.ref as any} x={obs.x} scale={0.8} />;
         }
         if (obs.type === 'stump-high') {

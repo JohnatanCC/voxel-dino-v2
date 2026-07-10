@@ -1,11 +1,45 @@
 import { create } from 'zustand';
+import { ObstacleType } from '../scenarios/types';
 
 export type FogDensity = 'off' | 'minimum' | 'low' | 'medium' | 'high';
-export type GameStatus = 'menu' | 'playing' | 'gameover' | 'paused';
+export type GameStatus = 'menu' | 'playing' | 'gameover' | 'paused' | 'levelcleared';
 export type CameraMode = '2D' | '2.5D';
 export type GameScenario = 'desert' | 'forest' | 'swamp' | 'snow';
 export type GameDifficulty = 'easy' | 'medium' | 'hard';
 export type GraphicsQuality = 'low' | 'medium' | 'high';
+
+export interface LevelConfig {
+  id: number;
+  map: GameScenario;
+  levelNumber: number;
+  maxScore: number;
+  allowedObstacles: ObstacleType[];
+  eggsToCollect: number;
+}
+
+export const LEVELS: LevelConfig[] = [
+  // Desert Levels (1-5)
+  { id: 1, map: 'desert', levelNumber: 1, maxScore: 10000, allowedObstacles: ['cactus-small', 'cactus-large', 'skull'], eggsToCollect: 3 },
+  { id: 2, map: 'desert', levelNumber: 2, maxScore: 15000, allowedObstacles: ['cactus-small', 'cactus-large', 'skull', 'mummy'], eggsToCollect: 3 },
+  { id: 3, map: 'desert', levelNumber: 3, maxScore: 20000, allowedObstacles: ['cactus-small', 'cactus-large', 'skull', 'mummy', 'bird'], eggsToCollect: 3 },
+  { id: 4, map: 'desert', levelNumber: 4, maxScore: 25000, allowedObstacles: ['cactus-small', 'cactus-large', 'skull', 'mummy', 'bird'], eggsToCollect: 3 },
+  { id: 5, map: 'desert', levelNumber: 5, maxScore: 30000, allowedObstacles: ['cactus-small', 'cactus-large', 'skull', 'mummy', 'bird', 'stump-low', 'stump-high', 'swamp-log'], eggsToCollect: 3 },
+
+  // Forest Levels (1-4)
+  { id: 6, map: 'forest', levelNumber: 1, maxScore: 10000, allowedObstacles: ['stump-low', 'puddle'], eggsToCollect: 3 },
+  { id: 7, map: 'forest', levelNumber: 2, maxScore: 15000, allowedObstacles: ['stump-low', 'puddle', 'stump-high'], eggsToCollect: 3 },
+  { id: 8, map: 'forest', levelNumber: 3, maxScore: 20000, allowedObstacles: ['stump-low', 'puddle', 'stump-high', 'tree-hole'], eggsToCollect: 3 },
+  { id: 9, map: 'forest', levelNumber: 4, maxScore: 25000, allowedObstacles: ['stump-low', 'puddle', 'stump-high', 'tree-hole', 'bird'], eggsToCollect: 3 },
+
+  // Swamp Levels (1-2)
+  { id: 10, map: 'swamp', levelNumber: 1, maxScore: 10000, allowedObstacles: ['swamp-log', 'puddle'], eggsToCollect: 3 },
+  { id: 11, map: 'swamp', levelNumber: 2, maxScore: 15000, allowedObstacles: ['swamp-log', 'puddle', 'croc', 'swamp-fly', 'bird'], eggsToCollect: 3 },
+
+  // Snow Levels (1-3)
+  { id: 12, map: 'snow', levelNumber: 1, maxScore: 10000, allowedObstacles: ['rock-small', 'firebox'], eggsToCollect: 3 },
+  { id: 13, map: 'snow', levelNumber: 2, maxScore: 15000, allowedObstacles: ['rock-small', 'firebox', 'rock-large', 'snowman'], eggsToCollect: 3 },
+  { id: 14, map: 'snow', levelNumber: 3, maxScore: 20000, allowedObstacles: ['rock-small', 'firebox', 'rock-large', 'snowman'], eggsToCollect: 3 },
+];
 
 export interface FloatingText {
   id: string;
@@ -64,6 +98,7 @@ interface GameState {
   gameTime: number;
   activePowerup: 'none' | 'wings' | 'super' | 'ghost' | 'jaw' | 'earth';
   powerupEndTime: number;
+  cinematicPowerup: { name: string; desc: string; type: string } | null;
   isSandstorm: boolean;
   cameraShake: number;
   floatingTexts: FloatingText[];
@@ -73,6 +108,7 @@ interface GameState {
   coldTimer: number; // For snow scenario
   weakJumpUntil: number;
   slowUntil: number;
+  slowmoUntil: number;
   setSlowUntil: (time: number) => void; // For snow scenario snowman obstacle
   mummySlowUntil: number;
   originalFogDensity: FogDensity | null;
@@ -127,6 +163,15 @@ interface GameState {
   equipSkin: (skinId: string) => void;
   redeemCode: (code: string) => boolean;
   generateEggSpawnPattern: () => void;
+
+  // Levels additions
+  currentLevelId: number;
+  highestUnlockedLevelId: number;
+  levelStars: Record<number, number>;
+  levelHighScores: Record<number, number>;
+  selectLevel: (levelId: number) => void;
+  clearLevel: () => void;
+  getCurrentLevel: () => LevelConfig;
 }
 
 const INITIAL_SPEED = 9; // 15 * 0.6 (easy default)
@@ -141,7 +186,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   scenario: 'desert',
   isMixedMode: true,
   difficulty: 'medium',
-  graphicsQuality: 'medium',
+  graphicsQuality: typeof window !== 'undefined' ? (localStorage.getItem('trex-graphics-quality') || 'medium') as GraphicsQuality : 'medium',
   lives: 3,
   dinoColor: (() => {
     const eq = typeof window !== 'undefined' ? (localStorage.getItem('trex-equipped-skin') || 'dino-classic') : 'dino-classic';
@@ -152,10 +197,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   gameTime: 0,
   activePowerup: 'none',
   powerupEndTime: 0,
+  cinematicPowerup: null,
   invincibleUntil: 0,
   heavyJumpUntil: 0,
   weakJumpUntil: 0,
   slowUntil: 0,
+  slowmoUntil: 0,
   mummySlowUntil: 0,
   originalFogDensity: null,
   setMummySlowUntil: (time) => set({ mummySlowUntil: time }),
@@ -187,27 +234,56 @@ export const useGameStore = create<GameState>((set, get) => ({
   shouldSpawnEgg: false,
   pendingEggRarity: null,
 
+  // Levels initial state
+  currentLevelId: parseInt(localStorage.getItem('trex-current-level') || '1'),
+  highestUnlockedLevelId: parseInt(localStorage.getItem('trex-unlocked-level') || '1'),
+  levelStars: (() => {
+    try {
+      return JSON.parse(localStorage.getItem('trex-level-stars') || '{}');
+    } catch {
+      return {};
+    }
+  })(),
+  levelHighScores: (() => {
+    try {
+      return JSON.parse(localStorage.getItem('trex-level-highscores') || '{}');
+    } catch {
+      return {};
+    }
+  })(),
+
   startGame: () => set((state) => {
+    // Retrieve selected level
+    const currentLevel = LEVELS.find(l => l.id === state.currentLevelId) || LEVELS[0];
+
+    // Auto-set difficulty based on level number
+    let levelDifficulty: GameDifficulty = 'medium';
+    if (currentLevel.levelNumber === 1 || currentLevel.levelNumber === 2) {
+      levelDifficulty = 'easy';
+    } else if (currentLevel.levelNumber === 3 || currentLevel.levelNumber === 4) {
+      levelDifficulty = 'medium';
+    } else if (currentLevel.levelNumber >= 5) {
+      levelDifficulty = 'hard';
+    }
+
     let startingLives = 1;
-    if (state.difficulty === 'easy') startingLives = 5;
-    if (state.difficulty === 'medium') startingLives = 3;
+    if (levelDifficulty === 'easy') startingLives = 5;
+    if (levelDifficulty === 'medium') startingLives = 3;
     
     let initialSpeed = 9;
-    if (state.difficulty === 'easy') initialSpeed = 7.5;
-    if (state.difficulty === 'hard') initialSpeed = 12;
+    if (levelDifficulty === 'easy') initialSpeed = 7.5;
+    if (levelDifficulty === 'hard') initialSpeed = 12;
 
     // Reset current run eggs and tail
     const currentRunEggs = { common: 0, rare: 0, ultraRare: 0 };
     const eggsInTail: { id: string; rarity: EggRarity }[] = [];
 
-    // Pre-generate egg pattern for score range 0-10000
-    const count = Math.floor(Math.random() * 3) + 1; // 1 to 3 eggs
-    const scores = [];
-    for (let i = 0; i < count; i++) {
-       const scoreOffset = 500 + Math.random() * 9000;
-       scores.push(Math.round(scoreOffset));
-    }
-    scores.sort((a, b) => a - b);
+    // Pre-determine egg milestones at 25%, 50%, and 75% of the maxScore
+    const scores = [
+      Math.round(currentLevel.maxScore * 0.25),
+      Math.round(currentLevel.maxScore * 0.50),
+      Math.round(currentLevel.maxScore * 0.75)
+    ];
     
     const updates: Partial<GameState> = { 
       status: 'playing', 
@@ -215,13 +291,18 @@ export const useGameStore = create<GameState>((set, get) => ({
       speed: initialSpeed, 
       gameId: state.gameId + 1, 
       gameTime: 0, 
-      activePowerup: state.activePowerup, 
-      isSandstorm: state.scenario === 'desert', 
+      activePowerup: 'none',
+      powerupEndTime: 0,
+      cinematicPowerup: null,
+      scenario: currentLevel.map,
+      isSandstorm: currentLevel.map === 'desert', 
       lives: startingLives, 
+      difficulty: levelDifficulty,
       invincibleUntil: 0, 
       heavyJumpUntil: 0, 
       weakJumpUntil: 0,
       slowUntil: 0, 
+      slowmoUntil: 0,
       coldTimer: 30, 
       floatingTexts: [], 
       mummySlowUntil: 0, 
@@ -268,7 +349,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     const state = get();
     if (state.status === 'gameover') return 0;
     let s = state.speed;
-    if (performance.now() < state.mummySlowUntil) s /= 1.5;
+    if (performance.now() < state.slowmoUntil) s *= 0.3;
+    else if (performance.now() < state.mummySlowUntil) s /= 1.5;
     else if (performance.now() < state.slowUntil) s *= 0.5;
     
     if (state.scenario === 'snow' && state.coldTimer <= 0) {
@@ -314,6 +396,48 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (state.difficulty === 'easy') multiplier = 0.6;
     const newScore = state.score + (points * multiplier);
     
+    // Retrieve current level config
+    const currentLevel = LEVELS.find(l => l.id === state.currentLevelId) || LEVELS[0];
+
+    // Check if target score is reached
+    if (newScore >= currentLevel.maxScore) {
+      // Level completed! Calculate stars based on collected eggs in tail (max 3)
+      const stars = Math.min(3, state.eggsInTail.length);
+      
+      // Update level completion records
+      const levelStars = { ...state.levelStars, [state.currentLevelId]: Math.max(state.levelStars[state.currentLevelId] || 0, stars) };
+      const levelHighScores = { ...state.levelHighScores, [state.currentLevelId]: Math.max(state.levelHighScores[state.currentLevelId] || 0, Math.floor(newScore)) };
+      
+      localStorage.setItem('trex-level-stars', JSON.stringify(levelStars));
+      localStorage.setItem('trex-level-highscores', JSON.stringify(levelHighScores));
+
+      // Unlock next level if this was the highest unlocked
+      let highestUnlockedLevelId = state.highestUnlockedLevelId;
+      if (state.currentLevelId === state.highestUnlockedLevelId && state.currentLevelId < LEVELS.length) {
+        highestUnlockedLevelId = state.currentLevelId + 1;
+        localStorage.setItem('trex-unlocked-level', highestUnlockedLevelId.toString());
+      }
+
+      // Convert eggs in tail to coins (50 for common, 150 for rare, 250 for ultra-rare)
+      const commonVal = state.currentRunEggs.common * 50;
+      const rareVal = state.currentRunEggs.rare * 150;
+      const ultraRareVal = state.currentRunEggs.ultraRare * 250;
+      const totalCoinsGained = commonVal + rareVal + ultraRareVal;
+      const newCoins = state.coins + totalCoinsGained;
+      localStorage.setItem('trex-coins', newCoins.toString());
+
+      return {
+        status: 'levelcleared',
+        score: Math.floor(newScore),
+        levelStars,
+        levelHighScores,
+        highestUnlockedLevelId,
+        coins: newCoins,
+        activePowerup: 'none',
+        floatingTexts: []
+      };
+    }
+    
     let initialSpeed = 9;
     if (state.difficulty === 'easy') initialSpeed = 7.5;
     if (state.difficulty === 'hard') initialSpeed = 12;
@@ -326,24 +450,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     let newSpeed = initialSpeed + (acceleration * framesElapsed);
     if (newSpeed > 37.5) newSpeed = 37.5; // Max speed cap of 37.5 (2.5x of 15)
 
-    // Egg spawning checks
-    const prev10k = Math.floor(state.score / 10000);
-    const curr10k = Math.floor(newScore / 10000);
+    // Egg spawning checks (milestones already set in startGame)
     let eggSpawnScores = [...state.eggSpawnScores];
     let shouldSpawnEgg = state.shouldSpawnEgg;
     let pendingEggRarity = state.pendingEggRarity;
-
-    if (curr10k > prev10k) {
-       // Reset and generate for next 10k interval
-       eggSpawnScores = [];
-       const count = Math.floor(Math.random() * 3) + 1; // 1 to 3 eggs
-       const base = curr10k * 10000;
-       for (let i = 0; i < count; i++) {
-         const scoreOffset = 500 + Math.random() * 9000;
-         eggSpawnScores.push(Math.round(base + scoreOffset));
-       }
-       eggSpawnScores.sort((a, b) => a - b);
-    }
 
     if (eggSpawnScores.length > 0 && newScore >= eggSpawnScores[0] && !shouldSpawnEgg) {
        eggSpawnScores.shift();
@@ -359,32 +469,6 @@ export const useGameStore = create<GameState>((set, get) => ({
        }
     }
     
-    // Check for mixed mode transition
-    if (state.isMixedMode && state.status === 'playing') {
-       const previousThreshold = Math.floor(state.score / 10000);
-       const currentThreshold = Math.floor(newScore / 10000);
-       if (currentThreshold > previousThreshold && !state.isTransitioning) {
-         // Switch scenario
-         const scenarios: GameScenario[] = ['desert', 'forest', 'swamp'];
-         const currentIndex = scenarios.indexOf(state.scenario);
-         const nextScenario = scenarios[(currentIndex + 1) % scenarios.length];
-         
-         // Trigger a floating text to announce transition
-         state.addFloatingText('NEW AREA!', 5, 5, 0, '#333333');
-         
-         return { 
-           score: newScore, 
-           speed: newSpeed,
-           pendingScenario: nextScenario,
-           isTransitioning: true,
-           transitionStartTime: state.gameTime,
-           eggSpawnScores,
-           shouldSpawnEgg,
-           pendingEggRarity
-         };
-       }
-    }
-    
     return { 
       score: newScore, 
       speed: newSpeed,
@@ -394,11 +478,14 @@ export const useGameStore = create<GameState>((set, get) => ({
     };
   }),
   increaseSpeed: (amount) => set((state) => ({ speed: state.speed + amount })),
-  setCameraMode: (mode) => set({ cameraMode: mode }),
+  setCameraMode: (cameraMode) => set({ cameraMode }),
   setScenario: (scenario) => set({ scenario, isSandstorm: scenario === 'desert' }),
   setMixedMode: (isMixed) => set({ isMixedMode: isMixed }),
   setDifficulty: (difficulty) => set({ difficulty }),
-  setGraphicsQuality: (quality) => set({ graphicsQuality: quality }),
+  setGraphicsQuality: (quality) => {
+    localStorage.setItem('trex-graphics-quality', quality);
+    set({ graphicsQuality: quality });
+  },
   loseLife: () => set((state) => {
     const newLives = state.lives - 1;
     if (newLives <= 0) {
@@ -499,7 +586,22 @@ export const useGameStore = create<GameState>((set, get) => ({
     
     return updates;
   }),
-  activatePowerup: (powerup, duration) => set((state) => ({ activePowerup: powerup, powerupEndTime: state.gameTime + duration })),
+  activatePowerup: (powerup, duration) => set((state) => {
+    const info: Record<string, { name: string; desc: string }> = {
+      jaw: { name: 'Feroz', desc: 'Coma pássaros à vontade' },
+      ghost: { name: 'Fantasma', desc: 'Voe e atravesse' },
+      wings: { name: 'Anjo', desc: 'Bata sua asa uma vez' },
+      earth: { name: 'Escavador', desc: 'Entre no chão por um tempo' },
+      super: { name: 'SUPERDINO', desc: 'DESTRUA TUDO!!!' },
+    };
+    const pInfo = info[powerup] || { name: powerup.toUpperCase(), desc: '' };
+    return { 
+      activePowerup: powerup, 
+      powerupEndTime: state.gameTime + duration,
+      cinematicPowerup: { ...pInfo, type: powerup },
+      slowmoUntil: performance.now() + 1500
+    };
+  }),
   deactivatePowerup: () => set({ activePowerup: 'none' }),
   triggerCameraShake: (intensity: number) => set({ cameraShake: intensity }),
   updateCameraShake: () => set((state) => ({ cameraShake: Math.max(0, state.cameraShake - 0.05) })),
@@ -604,5 +706,21 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
     scores.sort((a, b) => a - b);
     set({ eggSpawnScores: scores, shouldSpawnEgg: false, pendingEggRarity: null });
+  },
+  selectLevel: (levelId) => {
+    const level = LEVELS.find(l => l.id === levelId) || LEVELS[0];
+    localStorage.setItem('trex-current-level', levelId.toString());
+    set({
+      currentLevelId: levelId,
+      scenario: level.map,
+      isSandstorm: level.map === 'desert'
+    });
+  },
+  clearLevel: () => set((state) => {
+    return {};
+  }),
+  getCurrentLevel: () => {
+    const state = get();
+    return LEVELS.find(l => l.id === state.currentLevelId) || LEVELS[0];
   }
 }));

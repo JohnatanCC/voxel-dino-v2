@@ -4,6 +4,7 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
+
 // Suppress Three.js deprecation warnings caused by R3F
 const originalWarn = console.warn;
 console.warn = (...args) => {

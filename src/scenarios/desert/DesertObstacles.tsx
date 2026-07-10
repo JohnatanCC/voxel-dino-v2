@@ -5,6 +5,7 @@ import { useGameStore } from '../../store/gameStore';
 import { ObstacleData, ObstacleType, PowerupType } from '../types';
 import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition, isBirdEligible } from '../helpers';
 import { VoxelEgg } from '../../components/VoxelEgg';
+import { Stump } from '../forest/ForestObstacles';
 
 // Reusable obstacle geometries
 const cactusMaterial = new THREE.MeshStandardMaterial({ color: '#22c55e', roughness: 0.9 });
@@ -391,25 +392,16 @@ export const DesertObstacles = forwardRef<ObstacleData[]>((props, ref) => {
       return slot;
     }
 
-    // Scenario-specific obstacles
-    const rand = Math.random();
-    let type: ObstacleType = 'cactus-small';
+    // Scenario-specific obstacles based on current level configuration
+    const currentLevel = store.getCurrentLevel();
+    const allowed = currentLevel?.allowedObstacles || ['cactus-small', 'cactus-large', 'skull'];
+    const type = allowed[Math.floor(Math.random() * allowed.length)];
     let y = 0;
 
-    const score = useGameStore.getState().score;
-    const birdThreshold = Math.max(0.55, 0.8 - (score / 60000));
-    
-    if (isBirdEligible() && rand > birdThreshold) {
-      type = 'bird';
+    if (type === 'bird') {
       y = 0.8 + Math.random() * 2.4;
-    } else if (rand > 0.5) {
-      type = 'cactus-large';
-    } else {
-      if (score > 20000 && Math.random() > 0.5) {
-        type = 'mummy';
-      } else {
-        type = 'skull';
-      }
+    } else if (type === 'mummy' || type === 'skull') {
+      y = 0.6;
     }
 
     slot.type = type;
@@ -506,8 +498,10 @@ export const DesertObstacles = forwardRef<ObstacleData[]>((props, ref) => {
     const shouldSpawn = nextSpawnX.current < SPAWN_DISTANCE && !isTransitioning;
 
     if (shouldSpawn) {
+      const currentLevel = useGameStore.getState().getCurrentLevel();
+      const isLevel5 = currentLevel && currentLevel.levelNumber >= 5;
       const score = useGameStore.getState().score;
-      const spawnFlock = score > 30000 && Math.random() < 0.7;
+      const spawnFlock = (isLevel5 || score > 30000) && Math.random() < 0.75;
 
       if (spawnFlock) {
          const inactiveSlots = pool.filter(obs => obs.x <= DESPAWN_DISTANCE);
@@ -580,6 +574,12 @@ export const DesertObstacles = forwardRef<ObstacleData[]>((props, ref) => {
         }
         if (obs.type === 'mummy') {
           return <Mummy key={obs.id} ref={obs.ref as any} x={obs.x} />;
+        }
+        if (obs.type === 'stump-low' || obs.type === 'swamp-log') {
+          return <Stump key={obs.id} ref={obs.ref as any} x={obs.x} scale={0.8} />;
+        }
+        if (obs.type === 'stump-high') {
+          return <Stump key={obs.id} ref={obs.ref as any} x={obs.x} scale={1.2} isHigh={true} />;
         }
         return null;
       })}

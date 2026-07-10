@@ -49,7 +49,7 @@ const treeHoleCanopyGeo = new THREE.BoxGeometry(2, 4, 5);
 const treeHoleLeavesGeo = new THREE.SphereGeometry(4, 8, 8);
 const treeHoleSideTrunkGeo = new THREE.CylinderGeometry(0.6, 1.2, 3, 5);
 
-const Stump = forwardRef<THREE.Group, { x: number; scale: number; isHigh?: boolean }>(
+export const Stump = forwardRef<THREE.Group, { x: number; scale: number; isHigh?: boolean }>(
   ({ x, scale, isHigh = false }, ref) => {
     const height = isHigh ? 2.5 : 1.5;
     const geometry = isHigh ? cylinderStumpHighGeo : cylinderStumpLowGeo;
@@ -266,23 +266,14 @@ export const ForestObstacles = forwardRef<ObstacleData[]>((props, ref) => {
       return slot;
     }
 
-    // Scenario-specific obstacles
-    const rand = Math.random();
-    let type: ObstacleType = 'stump-low';
+    // Scenario-specific obstacles based on current level configuration
+    const currentLevel = store.getCurrentLevel();
+    const allowed = currentLevel?.allowedObstacles || ['stump-low', 'puddle'];
+    const type = allowed[Math.floor(Math.random() * allowed.length)];
     let y = 0;
 
-    const score = useGameStore.getState().score;
-    const birdThreshold = Math.max(0.55, 0.7 - (score / 60000));
-    
-    if (isBirdEligible() && rand > birdThreshold) {
-      type = 'bird';
+    if (type === 'bird') {
       y = 0.8 + Math.random() * 2.4;
-    } else if (rand > 0.45) {
-      type = 'puddle';
-    } else if (rand > 0.22) {
-      type = 'stump-high';
-    } else {
-      type = 'tree-hole';
     }
 
     slot.type = type;

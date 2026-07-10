@@ -261,13 +261,13 @@ export function useDinoPhysics(previewMode = false) {
 
         if (isGrounded.current) {
           if (currentPowerup === "ghost") {
-            visualY += 0.5 + Math.sin(runPhase.current * 1.5) * 0.2; // Float
+            visualY += 0.8 + Math.sin(runPhase.current * 1.5) * 0.25; // Float higher
           } else {
             visualY += Math.abs(Math.sin(runPhase.current)) * 0.22 * baseScale; // Bounce
           }
         } else {
           if (currentPowerup === "ghost") {
-            visualY += 0.5;
+            visualY += 0.8;
           }
         }
 
@@ -281,7 +281,7 @@ export function useDinoPhysics(previewMode = false) {
         innerRef.current.position.set(previewMode ? 0 : DINO_X, visualY, 0);
 
         // Apply scale for Super T-Rex / normal T-Rex size lerping
-        const scaleMultiplier = currentPowerup === "super" ? 2.1 : 0.85;
+        const scaleMultiplier = currentPowerup === "super" ? 1.75 : 0.85;
         const targetWorldScale = new THREE.Vector3(scaleMultiplier, scaleMultiplier, scaleMultiplier).multiply(currentScale.current);
         innerRef.current.scale.copy(targetWorldScale);
 

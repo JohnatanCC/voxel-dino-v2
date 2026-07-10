@@ -210,16 +210,23 @@ export function Game() {
             }
 
             if (obs.type === 'powerup' && obs.powerupType) {
-              spawnParticles('sparkle', [obs.x, obs.ref.current.position.y, 0], 20);
-              
               if (obs.powerupType === 'life') {
+                spawnParticles('sparkle', [obs.x, obs.ref.current.position.y, 0], 20);
                 playLifeSound();
                 useGameStore.getState().gainLife();
                 useGameStore.getState().addFloatingText('+1 VIDA', obs.x, obs.ref.current.position.y + 1, 0, '#ef4444');
               } else {
+                const powerupColors: Record<string, string> = {
+                  wings: '#ffd700',
+                  super: '#facc15',
+                  ghost: '#c084fc',
+                  jaw: '#f97316',
+                  earth: '#a16207',
+                };
+                const particleColor = powerupColors[obs.powerupType] || '#fbbf24';
+                spawnParticles('absorb', [obs.x, obs.ref.current.position.y, 0], 35, particleColor);
                 playScoreSound();
                 activatePowerup(obs.powerupType, 12); // 12 seconds duration
-                useGameStore.getState().addFloatingText(obs.powerupType.toUpperCase() + '!', obs.x, obs.ref.current.position.y + 1, 0, '#fbbf24');
               }
               // Move powerup out of view immediately to simulate despawn
               obs.x = -100;
@@ -230,7 +237,9 @@ export function Game() {
             if (activePowerup === 'super' || activePowerup === 'ghost') {
               // Destroy obstacle (or phase through)
               if (activePowerup === 'ghost') {
-                useGameStore.getState().deactivatePowerup();
+                useGameStore.getState().addFloatingText('-1s', obs.x, obs.ref.current.position.y + 1, 0, '#a855f7');
+                useGameStore.setState((state) => ({ powerupEndTime: state.powerupEndTime - 1 }));
+                spawnParticles('sparkle', [obs.x, obs.ref.current.position.y, 0], 12, '#a855f7');
               } else {
                 // If super, explode the obstacle
                 playScoreSound();
@@ -245,7 +254,7 @@ export function Game() {
               continue;
             }
 
-            if (activePowerup === 'jaw' && obs.type !== 'powerup') {
+            if (activePowerup === 'jaw' && obs.type === 'bird') {
               // Eat bird
               playScoreSound();
               spawnParticles('explosion', [obs.x, obs.ref.current.position.y, 0], 20, '#ef4444');

@@ -9,7 +9,7 @@ export const DESPAWN_DISTANCE = -10;
  * Returns the generated properties or null if scenario-specific obstacles should be generated instead.
  */
 export function tryGenerateGlobalObstacle(): { type: ObstacleType; y: number; powerupType?: PowerupType } | null {
-  const { difficulty } = useGameStore.getState();
+  const { difficulty, activePowerup } = useGameStore.getState();
   const rand = Math.random();
   
   let lifeChance = 0;
@@ -17,6 +17,9 @@ export function tryGenerateGlobalObstacle(): { type: ObstacleType; y: number; po
   if (difficulty === 'medium') lifeChance = 0.01;
 
   let powerupChance = difficulty === 'hard' ? 0.01 : 0.03;
+  if (activePowerup !== 'none') {
+    powerupChance = 0;
+  }
 
   if (rand < lifeChance) {
     return {
@@ -50,8 +53,12 @@ export function calculateNextObstaclePosition(): number {
   // Gap narrows down from 1.0 to 0.55 as score reaches 45,000 pts
   const gapMultiplier = Math.max(0.55, 1.0 - (score / 45000));
   
-  const minGap = ((currentSpeed * 1.1) + 6) * gapMultiplier;
-  const gap = minGap + Math.random() * (currentSpeed * 0.8) * gapMultiplier;
+  const currentLevel = state.getCurrentLevel();
+  const isLevel5 = currentLevel && currentLevel.levelNumber >= 5;
+  const frequencyMultiplier = isLevel5 ? 0.65 : 1.0;
+  
+  const minGap = ((currentSpeed * 1.1) + 6) * gapMultiplier * frequencyMultiplier;
+  const gap = minGap + Math.random() * (currentSpeed * 0.8) * gapMultiplier * frequencyMultiplier;
   
   return SPAWN_DISTANCE + gap;
 }

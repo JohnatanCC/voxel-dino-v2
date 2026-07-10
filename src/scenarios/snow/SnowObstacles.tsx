@@ -310,12 +310,13 @@ export const SnowObstacles = forwardRef<ObstacleData[]>((props, ref) => {
           spawnY = Math.random() > 0.5 ? 2.5 : 1.2; // high or low
           const powerupOpts: PowerupType[] = ['wings', 'super', 'ghost', 'jaw', 'earth', 'life'];
           chosenPowerup = powerupOpts[Math.floor(Math.random() * powerupOpts.length)];
-        } else if (rand < 0.4) {
-          chosenType = 'firebox'; // Cozy Campfire
-          spawnY = 0;
         } else {
-          const types: SnowObstacleType[] = ['rock-large', 'rock-small', 'snowman'];
-          chosenType = types[Math.floor(Math.random() * types.length)];
+          // Choose from allowed level obstacles for the snow scenario
+          const currentLevel = store.getCurrentLevel();
+          const allowed = currentLevel?.allowedObstacles || ['rock-large', 'rock-small', 'snowman', 'firebox'];
+          const allowedSnow = allowed.filter(t => ['rock-large', 'rock-small', 'snowman', 'firebox'].includes(t)) as SnowObstacleType[];
+          const fallbackType = allowedSnow.length > 0 ? allowedSnow[Math.floor(Math.random() * allowedSnow.length)] : 'rock-large';
+          chosenType = fallbackType;
           spawnY = 0;
         }
 
