@@ -98,12 +98,14 @@ export function EnvironmentManager() {
     root.style.setProperty('--game-ui-color', uiColor.getStyle());
   });
 
+  const graphicsQuality = useGameStore((state) => state.graphicsQuality);
+
   return (
     <>
       <ambientLight ref={ambientLightRef} intensity={0.4} />
       <directionalLight
         ref={directionalLightRef}
-        castShadow
+        castShadow={graphicsQuality !== 'low'}
         position={[10, 20, 10]}
         intensity={1.5}
         shadow-mapSize-width={1024}

@@ -1,23 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --color-game-bg: #f7f7f7;
-  --color-game-text: #535353;
-  --color-game-shadow: #bcbcbc;
+  --color-game-bg: #1e293b;
+  --color-game-text: #f8fafc;
+  --color-game-shadow: #334155;
 }
 
 @layer utilities {
   .game-font {
-    font-family: 'Courier New', Courier, monospace;
-    font-weight: bold;
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.02em;
   }
   .voxel-btn {
-    box-shadow: 4px 4px 0px var(--color-game-shadow);
-    transition: all 0.1s;
+    transition: all 0.15s ease-out;
+  }
+  .voxel-btn:hover {
+    transform: translateY(-1px);
   }
   .voxel-btn:active {
-    transform: translate(2px, 2px);
-    box-shadow: 2px 2px 0px var(--color-game-shadow);
+    transform: translateY(1px);
   }
 }
 
