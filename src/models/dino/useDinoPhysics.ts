@@ -5,11 +5,16 @@ import { useGameStore } from '../../store/gameStore';
 import { playJumpSound } from '../../utils/audio';
 import { spawnParticles } from '../../components/VFXRenderer';
 import { DinoAnimationState } from './types';
+import {
+  GRAVITY,
+  JUMP_VELOCITY,
+  FAST_FALL_MULTIPLIER,
+  JUMP_BUFFER_MS,
+  MIN_JUMP_HOLD_MS,
+  MIN_JUMP_VELOCITY_RATIO,
+} from '../../config/balance';
 
 const DINO_X = 2;
-const GRAVITY = -80;
-const JUMP_VELOCITY = 32;
-const FAST_FALL_MULTIPLIER = 3;
 
 export function useDinoPhysics(previewMode = false) {
   const innerRef = useRef<THREE.Group>(null);
@@ -27,6 +32,8 @@ export function useDinoPhysics(previewMode = false) {
   const isUnderground = useRef(false);
   const runPhase = useRef(0);
   const earthDuration = useRef(0);
+  const jumpBufferUntil = useRef(0);
+  const jumpHoldStart = useRef(0);
 
   const animState = useRef<DinoAnimationState>({
     runPhase: 0,
@@ -55,6 +62,8 @@ export function useDinoPhysics(previewMode = false) {
     currentScale.current.set(1, 1, 1);
     tilt.current = 0;
     runPhase.current = 0;
+    jumpBufferUntil.current = 0;
+    jumpHoldStart.current = 0;
 
     if (innerRef.current) {
       innerRef.current.position.set(previewMode ? 0 : DINO_X, previewMode ? -0.6 : 0, 0);
@@ -77,6 +86,27 @@ export function useDinoPhysics(previewMode = false) {
     resetDino();
   }, [gameId, status, previewMode]);
 
+  // Computes the jump takeoff velocity from the current status-effect state
+  // (heavy/weak), arms the airborne flags, and returns the velocity to apply.
+  // Shared by an immediate ground-press jump and a buffered jump fired on landing.
+  const jump = (): number => {
+    const state = useGameStore.getState();
+    const isHeavy = performance.now() < state.heavyJumpUntil;
+    const isWeak = performance.now() < state.weakJumpUntil;
+    let v = JUMP_VELOCITY;
+    if (isHeavy) v *= 0.7;
+    if (isWeak) v *= 0.5;
+
+    isGrounded.current = false;
+    jumpCount.current = 1;
+    jumpHoldStart.current = performance.now();
+    jumpBufferUntil.current = 0;
+    playJumpSound();
+    spawnParticles("dust", [DINO_X, 0.1, 0], 10, "#cbd5e1");
+    springVel.current = 10; // stretch impulse
+    return v;
+  };
+
   // Handle inputs
   useEffect(() => {
     if (previewMode) return;
@@ -85,25 +115,24 @@ export function useDinoPhysics(previewMode = false) {
       const state = useGameStore.getState();
       if (state.status !== "playing") return;
 
-      const isHeavy = performance.now() < state.heavyJumpUntil;
-      const isWeak = performance.now() < state.weakJumpUntil;
-      let currentJumpVelocity = JUMP_VELOCITY;
-      if (isHeavy) currentJumpVelocity *= 0.7;
-      if (isWeak) currentJumpVelocity *= 0.5;
-
       if (e.key === "ArrowUp" || e.key === "w" || e.code === "Space") {
         if (isGrounded.current) {
-          velocity.current = currentJumpVelocity;
-          isGrounded.current = false;
-          jumpCount.current = 1;
-          playJumpSound();
-          spawnParticles("dust", [DINO_X, 0.1, 0], 10, "#cbd5e1");
-          springVel.current = 10; // stretch impulse
+          velocity.current = jump();
         } else if (state.activePowerup === "wings" && jumpCount.current === 1) {
           // Double jump
-          velocity.current = currentJumpVelocity * 0.8;
+          const isHeavy = performance.now() < state.heavyJumpUntil;
+          const isWeak = performance.now() < state.weakJumpUntil;
+          let v = JUMP_VELOCITY;
+          if (isHeavy) v *= 0.7;
+          if (isWeak) v *= 0.5;
+          velocity.current = v * 0.8;
           jumpCount.current = 2;
+          jumpHoldStart.current = performance.now();
           playJumpSound();
+        } else {
+          // Not grounded yet: remember the request, consumed on landing
+          // within the buffer window so a slightly-early press still jumps.
+          jumpBufferUntil.current = performance.now() + JUMP_BUFFER_MS;
         }
       }
       if (e.key === "ArrowDown" || e.key === "s") {
@@ -126,7 +155,12 @@ export function useDinoPhysics(previewMode = false) {
         (e.key === "ArrowUp" || e.key === "w" || e.code === "Space") &&
         velocity.current > 0
       ) {
-        velocity.current *= 0.5;
+        // Variable jump height: a quick tap cuts the ascent down to a short
+        // hop, holding past MIN_JUMP_HOLD_MS keeps the full jump velocity.
+        const heldMs = performance.now() - jumpHoldStart.current;
+        const t = Math.min(1, heldMs / MIN_JUMP_HOLD_MS);
+        const cutFactor = MIN_JUMP_VELOCITY_RATIO + (1 - MIN_JUMP_VELOCITY_RATIO) * t;
+        velocity.current *= cutFactor;
       }
     };
 
@@ -215,6 +249,11 @@ export function useDinoPhysics(previewMode = false) {
           springVel.current = -15; // squash landing impulse
           spawnParticles("dust", [DINO_X, 0.1, 0], 15, "#cbd5e1");
           useGameStore.getState().triggerCameraShake(0.2);
+
+          // Consume a jump pressed slightly before touchdown.
+          if (jumpBufferUntil.current > performance.now()) {
+            newVel = jump();
+          }
         }
       } else {
         if (isGrounded.current) isGrounded.current = false;

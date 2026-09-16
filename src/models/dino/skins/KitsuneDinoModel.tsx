@@ -465,20 +465,6 @@ export function KitsuneDinoModel({ animState, previewMode = false, skinConfig }:
         </mesh>
       </group>
 
-      {/* Spikes */}
-      <mesh position={[-0.1, 1.8, 0]} castShadow={!isGhost} receiveShadow={!isGhost}>
-        <boxGeometry args={[0.3, 0.3, 0.2]} />
-        <primitive object={spikesMaterial} attach="material" />
-      </mesh>
-      <mesh position={[-0.5, 1.7, 0]} castShadow={!isGhost} receiveShadow={!isGhost}>
-        <boxGeometry args={[0.3, 0.3, 0.2]} />
-        <primitive object={spikesMaterial} attach="material" />
-      </mesh>
-      <mesh position={[-0.7, 1.5, 0]} castShadow={!isGhost} receiveShadow={!isGhost}>
-        <boxGeometry args={[0.3, 0.3, 0.2]} />
-        <primitive object={spikesMaterial} attach="material" />
-      </mesh>
-
       {/* 3 Swaying Kitsune Tails */}
       <group position={[-0.7, 1.0, 0]}>
         {tailsConfig.map((config, index) => (

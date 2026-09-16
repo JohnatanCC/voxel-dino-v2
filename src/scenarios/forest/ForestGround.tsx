@@ -268,6 +268,8 @@ export function ForestGround() {
       {/* Back Mountains */}
       <Mountains baseColor="#022c22" topColor="#064e3b" count={40} length={400} zOffset={-140} speedFactor={0.08} minScaleY={20} maxScaleY={45} />
 
+      {/* Clouds */}
+      <Clouds color="#ffffff" count={7} length={220} speedFactor={0.1} opacity={0.8} />
     </group>
   );
 }

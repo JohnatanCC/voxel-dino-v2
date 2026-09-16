@@ -5,6 +5,7 @@ import { ObstacleData, ObstacleType, PowerupType } from '../types';
 import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition } from '../helpers';
 import * as THREE from 'three';
 import { VoxelEgg } from '../../components/VoxelEgg';
+import { getAllowedObstacles } from '../../config/balance';
 
 export type SnowObstacleType = 'rock-large' | 'snowman' | 'rock-small' | 'powerup' | 'firebox';
 
@@ -311,11 +312,9 @@ export const SnowObstacles = forwardRef<ObstacleData[]>((props, ref) => {
           const powerupOpts: PowerupType[] = ['wings', 'super', 'ghost', 'jaw', 'earth', 'life'];
           chosenPowerup = powerupOpts[Math.floor(Math.random() * powerupOpts.length)];
         } else {
-          // Choose from allowed level obstacles for the snow scenario
-          const currentLevel = store.getCurrentLevel();
-          const allowed = currentLevel?.allowedObstacles || ['rock-large', 'rock-small', 'snowman', 'firebox'];
-          const allowedSnow = allowed.filter(t => ['rock-large', 'rock-small', 'snowman', 'firebox'].includes(t)) as SnowObstacleType[];
-          const fallbackType = allowedSnow.length > 0 ? allowedSnow[Math.floor(Math.random() * allowedSnow.length)] : 'rock-large';
+          // Choose from obstacles unlocked so far for the snow scenario
+          const allowed = getAllowedObstacles('snow', store.score) as SnowObstacleType[];
+          const fallbackType = allowed.length > 0 ? allowed[Math.floor(Math.random() * allowed.length)] : 'rock-large';
           chosenType = fallbackType;
           spawnY = 0;
         }

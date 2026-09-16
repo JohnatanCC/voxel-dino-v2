@@ -5,6 +5,7 @@ import { useGameStore } from '../../store/gameStore';
 import { ObstacleData, ObstacleType, PowerupType } from '../types';
 import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition, isBirdEligible } from '../helpers';
 import { VoxelEgg } from '../../components/VoxelEgg';
+import { getAllowedObstacles } from '../../config/balance';
 
 // Reusable static materials
 const woodMaterial = new THREE.MeshStandardMaterial({ color: '#78350f', roughness: 0.9 });
@@ -225,7 +226,7 @@ const TreeHoleObstacle = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => 
 });
 
 export const ForestObstacles = forwardRef<ObstacleData[]>((props, ref) => {
-  const { status, speed, gameId, difficulty, isTransitioning } = useGameStore();
+  const { status, speed, gameId, isTransitioning } = useGameStore();
   
   // The pool is a fixed state array of 8 items, pre-created with stable refs
   const [pool] = useState<ObstacleData[]>(() =>
@@ -266,9 +267,8 @@ export const ForestObstacles = forwardRef<ObstacleData[]>((props, ref) => {
       return slot;
     }
 
-    // Scenario-specific obstacles based on current level configuration
-    const currentLevel = store.getCurrentLevel();
-    const allowed = currentLevel?.allowedObstacles || ['stump-low', 'puddle'];
+    // Scenario-specific obstacles, unlocked progressively as the score climbs
+    const allowed = getAllowedObstacles('forest', store.score);
     const type = allowed[Math.floor(Math.random() * allowed.length)];
     let y = 0;
 
