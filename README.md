@@ -1,20 +1,31 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Voxel Dino
 
-# Run and deploy your AI Studio app
+Um endless runner 3D em estilo voxel, inspirado no clássico jogo do T-Rex do Chrome — construído para rodar direto no navegador (desktop e mobile).
 
-This contains everything you need to run your app locally.
+## Stack
 
-View your app in AI Studio: https://ai.studio/apps/867c77ed-d0da-46fe-8d6f-7d47c4eae7a7
+- **React 19** + **TypeScript**
+- **Three.js** / **React Three Fiber** + **@react-three/drei** para renderização 3D
+- **Zustand** para o estado global do jogo
+- **Tailwind CSS v4** + **Framer Motion** (`motion/react`) para a interface
+- **Vite** para build/dev server, com **vite-plugin-pwa** para suporte offline/instalável
 
-## Run Locally
+Consulte o [GUIDE.md](GUIDE.md) para as diretrizes de arquitetura, estilo de código e otimização de renderização 3D usadas no projeto.
 
-**Prerequisites:**  Node.js
+## Rodando localmente
 
+Pré-requisito: Node.js.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+npm install
+npm run dev
+```
+
+## Scripts
+
+- `npm run dev` — inicia o servidor de desenvolvimento
+- `npm run build` — build de produção
+- `npm run preview` — serve o build de produção localmente
+- `npm run lint` — checagem de tipos (`tsc --noEmit`)
+- `npm run test` — roda os testes unitários (`test/gameStore.test.ts`)
+- `npm run clean` — remove as pastas de build (`dist/`, `dev-dist/`)

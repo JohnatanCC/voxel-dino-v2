@@ -2,6 +2,7 @@ import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../../store/gameStore';
 import { Mountains } from '../../components/environment/Mountains';
+import { Clouds } from '../../components/environment/Clouds';
 import * as THREE from 'three';
 
 const GROUND_LENGTH = 120;
@@ -336,6 +337,9 @@ export function SnowGround() {
       <Mountains baseColor="#334155" topColor="#ffffff" count={50} length={300} zOffset={-90} speedFactor={0.15} minScaleY={5.5} maxScaleY={11.0} />
       {/* Back Mountains (Snowy) */}
       <Mountains baseColor="#1e293b" topColor="#ffffff" count={40} length={400} zOffset={-100} speedFactor={0.08} minScaleY={12.0} maxScaleY={28.0} />
+
+      {/* Overcast clouds */}
+      <Clouds color="#e2e8f0" count={9} length={220} speedFactor={0.1} opacity={0.75} />
 
       {/* Snowstorm */}
       <instancedMesh frustumCulled={false} ref={snowstormRef} args={[undefined, undefined, SNOWSTORM_COUNT]}>

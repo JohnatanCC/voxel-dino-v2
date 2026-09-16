@@ -18,6 +18,7 @@ if (typeof global.performance === 'undefined') {
 
 // Dynamically import the store to ensure global polyfills are applied first
 const { useGameStore } = await import('../src/store/gameStore');
+const { INITIAL_LIVES, INITIAL_SPEED, BIOME_ORDER, BIOME_CYCLE_SCORE } = await import('../src/config/balance');
 
 console.log("🚀 Starting gameStore unit tests...");
 
@@ -32,20 +33,20 @@ try {
   process.exit(1);
 }
 
-// Test Case 2: Start Game (Medium Difficulty)
+// Test Case 2: Start Game
 try {
   const store = useGameStore;
-  
+
   store.getState().resetGame();
-  store.getState().setDifficulty('medium');
   store.getState().startGame();
-  
+
   const state = store.getState();
   assert.strictEqual(state.status, 'playing');
   assert.strictEqual(state.score, 0);
-  assert.strictEqual(state.lives, 3);
-  assert.strictEqual(state.speed, 9); // Medium starting speed is 9
-  console.log("✅ Test 2: Start Game (Medium Difficulty) verified.");
+  assert.strictEqual(state.lives, INITIAL_LIVES);
+  assert.strictEqual(state.speed, INITIAL_SPEED);
+  assert.strictEqual(state.scenario, 'desert');
+  console.log("✅ Test 2: Start Game verified.");
 } catch (e) {
   console.error("❌ Test 2 failed:", e);
   process.exit(1);
@@ -54,11 +55,10 @@ try {
 // Test Case 3: Lose Life and Game Over
 try {
   const store = useGameStore;
-  
+
   store.getState().resetGame();
-  store.getState().setDifficulty('medium');
   store.getState().startGame();
-  
+
   // Lose 1st life
   store.getState().loseLife();
   assert.strictEqual(store.getState().lives, 2);
@@ -83,7 +83,6 @@ try {
 try {
   const store = useGameStore;
   store.getState().resetGame();
-  store.getState().setDifficulty('medium');
   store.getState().startGame();
   
   const initialSpeed = store.getState().speed;
@@ -141,14 +140,14 @@ try {
   // Set coin state
   store.setState({ coins: 3000, ownedSkins: ['dino-classic'], equippedSkin: 'dino-classic' });
   
-  // Try to buy a skin we can afford (dino-brown costs 2500)
+  // Try to buy a skin we can afford (dino-brown costs 1000)
   const buySuccess = store.getState().buySkin('dino-brown');
   assert.strictEqual(buySuccess, true);
-  assert.strictEqual(store.getState().coins, 500);
+  assert.strictEqual(store.getState().coins, 2000);
   assert.ok(store.getState().ownedSkins.includes('dino-brown'));
-  
-  // Try to buy a skin we cannot afford (dino-blue costs 5000)
-  const buyFail = store.getState().buySkin('dino-blue');
+
+  // Try to buy a skin we cannot afford (dino-rainbow costs 10000)
+  const buyFail = store.getState().buySkin('dino-rainbow');
   assert.strictEqual(buyFail, false);
   
   // Equip the skin
@@ -165,10 +164,10 @@ try {
   const store = useGameStore;
   store.getState().resetGame();
   
-  // Redeem a valid promo code
-  const codeSuccess = store.getState().redeemCode('VOXELTREX');
+  // Redeem a valid promo code (exclusive skins are only unlockable this way)
+  const codeSuccess = store.getState().redeemCode('DUCKDINO');
   assert.strictEqual(codeSuccess, true);
-  assert.ok(store.getState().ownedSkins.includes('dino-rainbow'));
+  assert.ok(store.getState().ownedSkins.includes('dino-duck'));
 
   // Redeem kitsune promo code
   const kitsuneSuccess = store.getState().redeemCode('Exclusivepride#0507D');
@@ -204,6 +203,38 @@ try {
   console.log("✅ Test 8: Egg spawn target generation and score checks verified.");
 } catch (e) {
   console.error("❌ Test 8 failed:", e);
+  process.exit(1);
+}
+
+// Test Case 9: Infinite mode — no win state, biomes auto-cycle by score
+try {
+  const store = useGameStore;
+  store.getState().resetGame();
+  store.getState().startGame();
+
+  // Push score far beyond the old per-level score caps (used to top out at 30000)
+  store.getState().incrementScore(55000);
+  assert.ok(store.getState().score > 40000);
+  assert.strictEqual(store.getState().status, 'playing'); // never flips to a "cleared"/win state
+
+  const expectedBiome = () => {
+    const idx = Math.floor(store.getState().score / BIOME_CYCLE_SCORE) % BIOME_ORDER.length;
+    return BIOME_ORDER[idx];
+  };
+
+  // A frame tick should notice the score crossed into a new biome window
+  store.getState().addGameTime(0.016);
+  assert.strictEqual(store.getState().isTransitioning, true);
+  assert.strictEqual(store.getState().pendingScenario, expectedBiome());
+
+  // Let the transition play out
+  store.getState().addGameTime(3.5);
+  assert.strictEqual(store.getState().isTransitioning, false);
+  assert.strictEqual(store.getState().scenario, expectedBiome());
+
+  console.log("✅ Test 9: Infinite mode has no win state and biomes auto-cycle by score.");
+} catch (e) {
+  console.error("❌ Test 9 failed:", e);
   process.exit(1);
 }
 

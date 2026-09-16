@@ -6,6 +6,7 @@ import { ObstacleData, ObstacleType, PowerupType } from '../types';
 import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition, isBirdEligible } from '../helpers';
 import { VoxelEgg } from '../../components/VoxelEgg';
 import { Stump } from '../forest/ForestObstacles';
+import { getAllowedObstacles, FREQUENCY_RAMP_SCORE } from '../../config/balance';
 
 // Reusable obstacle geometries
 const cactusMaterial = new THREE.MeshStandardMaterial({ color: '#22c55e', roughness: 0.9 });
@@ -351,7 +352,7 @@ const PowerupBox = forwardRef<THREE.Group, { x: number; y: number; type?: Poweru
 });
 
 export const DesertObstacles = forwardRef<ObstacleData[]>((props, ref) => {
-  const { status, speed, gameId, difficulty, isTransitioning } = useGameStore();
+  const { status, speed, gameId, isTransitioning } = useGameStore();
   
   // The pool is a fixed state array of 8 items, pre-created with stable refs
   const [pool] = useState<ObstacleData[]>(() =>
@@ -392,9 +393,8 @@ export const DesertObstacles = forwardRef<ObstacleData[]>((props, ref) => {
       return slot;
     }
 
-    // Scenario-specific obstacles based on current level configuration
-    const currentLevel = store.getCurrentLevel();
-    const allowed = currentLevel?.allowedObstacles || ['cactus-small', 'cactus-large', 'skull'];
+    // Scenario-specific obstacles, unlocked progressively as the score climbs
+    const allowed = getAllowedObstacles('desert', store.score);
     const type = allowed[Math.floor(Math.random() * allowed.length)];
     let y = 0;
 
@@ -498,10 +498,8 @@ export const DesertObstacles = forwardRef<ObstacleData[]>((props, ref) => {
     const shouldSpawn = nextSpawnX.current < SPAWN_DISTANCE && !isTransitioning;
 
     if (shouldSpawn) {
-      const currentLevel = useGameStore.getState().getCurrentLevel();
-      const isLevel5 = currentLevel && currentLevel.levelNumber >= 5;
       const score = useGameStore.getState().score;
-      const spawnFlock = (isLevel5 || score > 30000) && Math.random() < 0.75;
+      const spawnFlock = score > FREQUENCY_RAMP_SCORE && Math.random() < 0.75;
 
       if (spawnFlock) {
          const inactiveSlots = pool.filter(obs => obs.x <= DESPAWN_DISTANCE);

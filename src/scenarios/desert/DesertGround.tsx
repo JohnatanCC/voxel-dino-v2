@@ -403,7 +403,7 @@ export function DesertGround() {
       <Mountains baseColor="#d4a373" topColor="#bc8348" />
 
       {/* Clouds */}
-      
+      <Clouds color="#fffbe8" count={8} length={200} speedFactor={0.1} opacity={0.85} />
     </group>
   );
 }

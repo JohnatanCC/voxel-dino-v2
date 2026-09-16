@@ -465,6 +465,9 @@ export function SwampGround() {
       {/* Parallax Mangrove Trees Layer */}
       {/* Parallax Mangrove Trees Layer */}
       <MangroveTrees count={10} zOffset={-50} zSpread={15} speedFactor={0.25} scaleMult={0.8} trunkColor="#44403c" leavesColor="#064e3b" />
+
+      {/* Low storm clouds */}
+      <Clouds color="#334155" count={10} length={180} speedFactor={0.12} opacity={0.7} />
     </group>
 
   );

@@ -95,9 +95,12 @@ export function TrailingEggs({ dinoRef }: TrailingEggsProps) {
     }
   });
 
+  // Hide the trail once the run ends so it doesn't clutter the game over screen.
+  const showEggs = status === 'playing' || status === 'paused';
+
   return (
     <group ref={groupRef}>
-      {eggsInTail.map((egg) => (
+      {showEggs && eggsInTail.map((egg) => (
         <VoxelEgg
           key={egg.id}
           rarity={egg.rarity}

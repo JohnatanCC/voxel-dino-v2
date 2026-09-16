@@ -1,45 +1,25 @@
 import { create } from 'zustand';
 import { ObstacleType } from '../scenarios/types';
+import {
+  INITIAL_SPEED,
+  MAX_SPEED,
+  ACCELERATION_PER_FRAME,
+  INITIAL_LIVES,
+  MAX_LIVES,
+  BIOME_ORDER,
+  BIOME_CYCLE_SCORE,
+  BIOME_TRANSITION_SWAP_TIME,
+  BIOME_TRANSITION_END_TIME,
+  BIOME_TRANSITION_INVINCIBILITY_MS,
+  EGG_COIN_VALUES,
+  rollEggRarity,
+} from '../config/balance';
 
 export type FogDensity = 'off' | 'minimum' | 'low' | 'medium' | 'high';
-export type GameStatus = 'menu' | 'playing' | 'gameover' | 'paused' | 'levelcleared';
+export type GameStatus = 'menu' | 'playing' | 'gameover' | 'paused';
 export type CameraMode = '2D' | '2.5D';
 export type GameScenario = 'desert' | 'forest' | 'swamp' | 'snow';
-export type GameDifficulty = 'easy' | 'medium' | 'hard';
 export type GraphicsQuality = 'low' | 'medium' | 'high';
-
-export interface LevelConfig {
-  id: number;
-  map: GameScenario;
-  levelNumber: number;
-  maxScore: number;
-  allowedObstacles: ObstacleType[];
-  eggsToCollect: number;
-}
-
-export const LEVELS: LevelConfig[] = [
-  // Desert Levels (1-5)
-  { id: 1, map: 'desert', levelNumber: 1, maxScore: 10000, allowedObstacles: ['cactus-small', 'cactus-large', 'skull'], eggsToCollect: 3 },
-  { id: 2, map: 'desert', levelNumber: 2, maxScore: 15000, allowedObstacles: ['cactus-small', 'cactus-large', 'skull', 'mummy'], eggsToCollect: 3 },
-  { id: 3, map: 'desert', levelNumber: 3, maxScore: 20000, allowedObstacles: ['cactus-small', 'cactus-large', 'skull', 'mummy', 'bird'], eggsToCollect: 3 },
-  { id: 4, map: 'desert', levelNumber: 4, maxScore: 25000, allowedObstacles: ['cactus-small', 'cactus-large', 'skull', 'mummy', 'bird'], eggsToCollect: 3 },
-  { id: 5, map: 'desert', levelNumber: 5, maxScore: 30000, allowedObstacles: ['cactus-small', 'cactus-large', 'skull', 'mummy', 'bird', 'stump-low', 'stump-high', 'swamp-log'], eggsToCollect: 3 },
-
-  // Forest Levels (1-4)
-  { id: 6, map: 'forest', levelNumber: 1, maxScore: 10000, allowedObstacles: ['stump-low', 'puddle'], eggsToCollect: 3 },
-  { id: 7, map: 'forest', levelNumber: 2, maxScore: 15000, allowedObstacles: ['stump-low', 'puddle', 'stump-high'], eggsToCollect: 3 },
-  { id: 8, map: 'forest', levelNumber: 3, maxScore: 20000, allowedObstacles: ['stump-low', 'puddle', 'stump-high', 'tree-hole'], eggsToCollect: 3 },
-  { id: 9, map: 'forest', levelNumber: 4, maxScore: 25000, allowedObstacles: ['stump-low', 'puddle', 'stump-high', 'tree-hole', 'bird'], eggsToCollect: 3 },
-
-  // Swamp Levels (1-2)
-  { id: 10, map: 'swamp', levelNumber: 1, maxScore: 10000, allowedObstacles: ['swamp-log', 'puddle'], eggsToCollect: 3 },
-  { id: 11, map: 'swamp', levelNumber: 2, maxScore: 15000, allowedObstacles: ['swamp-log', 'puddle', 'croc', 'swamp-fly', 'bird'], eggsToCollect: 3 },
-
-  // Snow Levels (1-3)
-  { id: 12, map: 'snow', levelNumber: 1, maxScore: 10000, allowedObstacles: ['rock-small', 'firebox'], eggsToCollect: 3 },
-  { id: 13, map: 'snow', levelNumber: 2, maxScore: 15000, allowedObstacles: ['rock-small', 'firebox', 'rock-large', 'snowman'], eggsToCollect: 3 },
-  { id: 14, map: 'snow', levelNumber: 3, maxScore: 20000, allowedObstacles: ['rock-small', 'firebox', 'rock-large', 'snowman'], eggsToCollect: 3 },
-];
 
 export interface FloatingText {
   id: string;
@@ -67,18 +47,20 @@ export type EggRarity = 'common' | 'rare' | 'ultraRare';
 
 export const SKINS: SkinConfig[] = [
   { id: 'dino-classic', name: 'T-Rex Clássico', rarity: 'common', price: 0, baseColor: '#535353', spotsColor: '#3f3f46', spikesColor: '#333333', collarColor: '#0ea5e9' },
-  { id: 'dino-brown', name: 'T-Rex de Bronze', rarity: 'common', price: 2500, baseColor: '#8B5A2B', spotsColor: '#5C3815', spikesColor: '#D2B48C', collarColor: '#ef4444' },
-  { id: 'dino-blue', name: 'T-Rex Aquático', rarity: 'rare', price: 5000, baseColor: '#1E3A8A', spotsColor: '#3B82F6', spikesColor: '#60A5FA', collarColor: '#eab308' },
-  { id: 'dino-purple', name: 'T-Rex do Vazio', rarity: 'ultra-rare', price: 7500, baseColor: '#6D28D9', spotsColor: '#A78BFA', spikesColor: '#EC4899', collarColor: '#10b981' },
-  { id: 'dino-gold', name: 'T-Rex Dourado', rarity: 'legendary', price: 150000, baseColor: '#F59E0B', spotsColor: '#D97706', spikesColor: '#FEF08A', collarColor: '#ffffff' },
+  { id: 'dino-brown', name: 'T-Rex de Bronze', rarity: 'common', price: 1000, baseColor: '#8B5A2B', spotsColor: '#5C3815', spikesColor: '#D2B48C', collarColor: '#ef4444' },
+  { id: 'dino-blue', name: 'T-Rex Aquático', rarity: 'rare', price: 1000, baseColor: '#1E3A8A', spotsColor: '#3B82F6', spikesColor: '#60A5FA', collarColor: '#eab308' },
+  { id: 'dino-purple', name: 'T-Rex do Vazio', rarity: 'ultra-rare', price: 1000, baseColor: '#6D28D9', spotsColor: '#A78BFA', spikesColor: '#EC4899', collarColor: '#10b981' },
+  { id: 'dino-gold', name: 'T-Rex Dourado', rarity: 'legendary', price: 1000, baseColor: '#F59E0B', spotsColor: '#D97706', spikesColor: '#FEF08A', collarColor: '#ffffff' },
   { id: 'dino-green-free', name: 'T-Rex Esmeralda', rarity: 'common', price: 0, baseColor: '#22c55e', spotsColor: '#15803d', spikesColor: '#16a34a', collarColor: '#fbbf24' },
   { id: 'dino-red-free', name: 'T-Rex Rubi', rarity: 'common', price: 0, baseColor: '#ef4444', spotsColor: '#b91c1c', spikesColor: '#dc2626', collarColor: '#ffffff' },
   { id: 'dino-pink-free', name: 'T-Rex Quartz', rarity: 'common', price: 0, baseColor: '#ec4899', spotsColor: '#be185d', spikesColor: '#db2777', collarColor: '#5b21b6' },
   { id: 'dino-yellow-free', name: 'T-Rex Topázio', rarity: 'common', price: 0, baseColor: '#eab308', spotsColor: '#ca8a04', spikesColor: '#ca8a04', collarColor: '#ef4444' },
-  { id: 'dino-kitsune', name: 'T-Rex Divino (Kitsune)', rarity: 'exclusive', price: 0, baseColor: '#ffffff', spotsColor: '#00a2ff', spikesColor: '#00a2ff', collarColor: '#0055ff' },
-  { id: 'dino-rainbow', name: 'T-Rex Cibernético', rarity: 'exclusive', price: 0, baseColor: '#ffffff', spotsColor: '#ffffff', spikesColor: '#000000', collarColor: '#a855f7', isRainbow: true },
-  { id: 'dino-duck', name: 'Pato Divino (DuckDino)', rarity: 'exclusive', price: 0, baseColor: '#fde047', spotsColor: '#fb923c', spikesColor: '#78350f', collarColor: '#ef4444' },
-  { id: 'dino-shark', name: 'SharkDino (Jeff)', rarity: 'exclusive', price: 0, baseColor: '#3182ce', spotsColor: '#f7fafc', spikesColor: '#2b6cb0', collarColor: '#ec4899' }
+  { id: 'dino-rainbow', name: 'T-Rex Cibernético', rarity: 'legendary', price: 10000, baseColor: '#1e293b', spotsColor: '#22d3ee', spikesColor: '#0f172a', collarColor: '#a855f7', isRainbow: true },
+  { id: 'dino-kitsune', name: 'T-Rex Kitsune', rarity: 'exclusive', price: 0, baseColor: '#ffffff', spotsColor: '#00a2ff', spikesColor: '#00a2ff', collarColor: '#0055ff' },
+  { id: 'dino-duck', name: 'Pato Dino', rarity: 'exclusive', price: 0, baseColor: '#fde047', spotsColor: '#fb923c', spikesColor: '#78350f', collarColor: '#ef4444' },
+  { id: 'dino-shark', name: 'Tubarão Dino', rarity: 'exclusive', price: 0, baseColor: '#3182ce', spotsColor: '#f7fafc', spikesColor: '#2b6cb0', collarColor: '#ec4899' },
+  { id: 'dino-gospel', name: 'Gospel Dino', rarity: 'ultra-rare', price: 1000, baseColor: '#fefce8', spotsColor: '#fbbf24', spikesColor: '#f59e0b', collarColor: '#fde68a' },
+  { id: 'dino-rabbit', name: 'Coelho Dino ', rarity: 'exclusive', price: 0, baseColor: '#3b82f6', spotsColor: '#ffffff', spikesColor: '#1d4ed8', collarColor: '#f472b6' }
 ];
 
 interface GameState {
@@ -89,8 +71,6 @@ interface GameState {
   speed: number;
   cameraMode: CameraMode;
   scenario: GameScenario;
-  isMixedMode: boolean;
-  difficulty: GameDifficulty;
   graphicsQuality: GraphicsQuality;
   lives: number;
   dinoColor: string;
@@ -124,8 +104,6 @@ interface GameState {
   increaseSpeed: (amount: number) => void;
   setCameraMode: (mode: CameraMode) => void;
   setScenario: (scenario: GameScenario) => void;
-  setMixedMode: (isMixed: boolean) => void;
-  setDifficulty: (diff: GameDifficulty) => void;
   setGraphicsQuality: (quality: GraphicsQuality) => void;
   loseLife: () => void;
   gainLife: () => void;
@@ -163,18 +141,15 @@ interface GameState {
   equipSkin: (skinId: string) => void;
   redeemCode: (code: string) => boolean;
   generateEggSpawnPattern: () => void;
-
-  // Levels additions
-  currentLevelId: number;
-  highestUnlockedLevelId: number;
-  levelStars: Record<number, number>;
-  levelHighScores: Record<number, number>;
-  selectLevel: (levelId: number) => void;
-  clearLevel: () => void;
-  getCurrentLevel: () => LevelConfig;
 }
 
-const INITIAL_SPEED = 9; // 15 * 0.6 (easy default)
+const INITIAL_FOG_SETTINGS: Record<GameScenario, FogDensity> = { desert: 'minimum', forest: 'minimum', swamp: 'low', snow: 'minimum' };
+
+function eggsToCoins(currentRunEggs: Record<EggRarity, number>): number {
+  return currentRunEggs.common * EGG_COIN_VALUES.common
+    + currentRunEggs.rare * EGG_COIN_VALUES.rare
+    + currentRunEggs.ultraRare * EGG_COIN_VALUES.ultraRare;
+}
 
 export const useGameStore = create<GameState>((set, get) => ({
   status: 'menu',
@@ -184,10 +159,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   speed: INITIAL_SPEED,
   cameraMode: '2D',
   scenario: 'desert',
-  isMixedMode: true,
-  difficulty: 'medium',
   graphicsQuality: typeof window !== 'undefined' ? (localStorage.getItem('trex-graphics-quality') || 'medium') as GraphicsQuality : 'medium',
-  lives: 3,
+  lives: INITIAL_LIVES,
   dinoColor: (() => {
     const eq = typeof window !== 'undefined' ? (localStorage.getItem('trex-equipped-skin') || 'dino-classic') : 'dino-classic';
     const skin = SKINS.find(s => s.id === eq) || SKINS[0];
@@ -216,7 +189,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   isTransitioning: false,
   transitionStartTime: 0,
   pendingScenario: null,
-  fogSettings: { desert: 'minimum', forest: 'minimum', swamp: 'low', snow: 'minimum' },
+  fogSettings: INITIAL_FOG_SETTINGS,
 
   // Economy and Skins initial state
   coins: parseInt(localStorage.getItem('trex-coins') || '0'),
@@ -234,113 +207,62 @@ export const useGameStore = create<GameState>((set, get) => ({
   shouldSpawnEgg: false,
   pendingEggRarity: null,
 
-  // Levels initial state
-  currentLevelId: parseInt(localStorage.getItem('trex-current-level') || '1'),
-  highestUnlockedLevelId: parseInt(localStorage.getItem('trex-unlocked-level') || '1'),
-  levelStars: (() => {
-    try {
-      return JSON.parse(localStorage.getItem('trex-level-stars') || '{}');
-    } catch {
-      return {};
-    }
-  })(),
-  levelHighScores: (() => {
-    try {
-      return JSON.parse(localStorage.getItem('trex-level-highscores') || '{}');
-    } catch {
-      return {};
-    }
-  })(),
+  startGame: () => {
+    set((state) => {
+      const updates: Partial<GameState> = {
+        status: 'playing',
+        score: 0,
+        speed: INITIAL_SPEED,
+        gameId: state.gameId + 1,
+        gameTime: 0,
+        activePowerup: 'none',
+        powerupEndTime: 0,
+        cinematicPowerup: null,
+        scenario: 'desert',
+        isSandstorm: true,
+        lives: INITIAL_LIVES,
+        invincibleUntil: 0,
+        heavyJumpUntil: 0,
+        weakJumpUntil: 0,
+        slowUntil: 0,
+        slowmoUntil: 0,
+        coldTimer: 30,
+        floatingTexts: [],
+        mummySlowUntil: 0,
+        originalFogDensity: null,
+        eatingUntil: 0,
+        isTransitioning: false,
+        transitionStartTime: 0,
+        pendingScenario: null,
+        currentRunEggs: { common: 0, rare: 0, ultraRare: 0 },
+        eggsInTail: [],
+        eggSpawnScores: [],
+        shouldSpawnEgg: false,
+        pendingEggRarity: null
+      };
 
-  startGame: () => set((state) => {
-    // Retrieve selected level
-    const currentLevel = LEVELS.find(l => l.id === state.currentLevelId) || LEVELS[0];
+      if (state.mummySlowUntil > 0 && state.originalFogDensity) {
+        updates.fogSettings = { ...state.fogSettings, [state.scenario]: state.originalFogDensity };
+      }
 
-    // Auto-set difficulty based on level number
-    let levelDifficulty: GameDifficulty = 'medium';
-    if (currentLevel.levelNumber === 1 || currentLevel.levelNumber === 2) {
-      levelDifficulty = 'easy';
-    } else if (currentLevel.levelNumber === 3 || currentLevel.levelNumber === 4) {
-      levelDifficulty = 'medium';
-    } else if (currentLevel.levelNumber >= 5) {
-      levelDifficulty = 'hard';
-    }
+      return updates;
+    });
 
-    let startingLives = 1;
-    if (levelDifficulty === 'easy') startingLives = 5;
-    if (levelDifficulty === 'medium') startingLives = 3;
-    
-    let initialSpeed = 9;
-    if (levelDifficulty === 'easy') initialSpeed = 7.5;
-    if (levelDifficulty === 'hard') initialSpeed = 12;
-
-    // Reset current run eggs and tail
-    const currentRunEggs = { common: 0, rare: 0, ultraRare: 0 };
-    const eggsInTail: { id: string; rarity: EggRarity }[] = [];
-
-    // Pre-determine egg milestones at 25%, 50%, and 75% of the maxScore
-    const scores = [
-      Math.round(currentLevel.maxScore * 0.25),
-      Math.round(currentLevel.maxScore * 0.50),
-      Math.round(currentLevel.maxScore * 0.75)
-    ];
-    
-    const updates: Partial<GameState> = { 
-      status: 'playing', 
-      score: 0, 
-      speed: initialSpeed, 
-      gameId: state.gameId + 1, 
-      gameTime: 0, 
-      activePowerup: 'none',
-      powerupEndTime: 0,
-      cinematicPowerup: null,
-      scenario: currentLevel.map,
-      isSandstorm: currentLevel.map === 'desert', 
-      lives: startingLives, 
-      difficulty: levelDifficulty,
-      invincibleUntil: 0, 
-      heavyJumpUntil: 0, 
-      weakJumpUntil: 0,
-      slowUntil: 0, 
-      slowmoUntil: 0,
-      coldTimer: 30, 
-      floatingTexts: [], 
-      mummySlowUntil: 0, 
-      originalFogDensity: null, 
-      eatingUntil: 0,
-      isTransitioning: false,
-      transitionStartTime: 0,
-      pendingScenario: null,
-      currentRunEggs,
-      eggsInTail,
-      eggSpawnScores: scores,
-      shouldSpawnEgg: false,
-      pendingEggRarity: null
-    };
-
-    if (state.mummySlowUntil > 0 && state.originalFogDensity) {
-      updates.fogSettings = { ...state.fogSettings, [state.scenario]: state.originalFogDensity };
-    }
-
-    return updates;
-  }),
+    // Seed the first batch of egg spawn milestones for this run.
+    get().generateEggSpawnPattern();
+  },
   endGame: () => set((state) => {
     const newHighScore = Math.max(Math.floor(state.score), state.highScore);
     localStorage.setItem('trex-highscore', newHighScore.toString());
 
-    // Convert eggs to coins
-    const commonVal = state.currentRunEggs.common * 50;
-    const rareVal = state.currentRunEggs.rare * 150;
-    const ultraRareVal = state.currentRunEggs.ultraRare * 250;
-    const totalCoinsGained = commonVal + rareVal + ultraRareVal;
-    const newCoins = state.coins + totalCoinsGained;
+    const newCoins = state.coins + eggsToCoins(state.currentRunEggs);
     localStorage.setItem('trex-coins', newCoins.toString());
 
-    return { 
-      status: 'gameover', 
-      highScore: newHighScore, 
-      score: Math.floor(state.score), 
-      activePowerup: 'none', 
+    return {
+      status: 'gameover',
+      highScore: newHighScore,
+      score: Math.floor(state.score),
+      activePowerup: 'none',
       floatingTexts: [],
       coins: newCoins
     };
@@ -352,136 +274,76 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (performance.now() < state.slowmoUntil) s *= 0.3;
     else if (performance.now() < state.mummySlowUntil) s /= 1.5;
     else if (performance.now() < state.slowUntil) s *= 0.5;
-    
+
     if (state.scenario === 'snow' && state.coldTimer <= 0) {
       s *= 0.8;
     }
     return s;
   },
-  resetGame: () => set((state) => {
-    let initialSpeed = 9;
-    if (state.difficulty === 'easy') initialSpeed = 7.5;
-    if (state.difficulty === 'hard') initialSpeed = 12;
-    return { 
-      status: 'menu', 
-      score: 0, 
-      speed: initialSpeed, 
-      gameTime: 0, 
-      activePowerup: state.activePowerup, 
-      isSandstorm: true, 
-      floatingTexts: [], 
-      isTransitioning: false, 
-      transitionStartTime: 0, 
-      pendingScenario: null,
-      fogSettings: { desert: 'minimum', forest: 'minimum', swamp: 'low', snow: 'minimum' }, 
-      coldTimer: 30, 
-      mummySlowUntil: 0, 
-      originalFogDensity: null, 
-      eatingUntil: 0,
-      currentRunEggs: { common: 0, rare: 0, ultraRare: 0 },
-      eggsInTail: [],
-      eggSpawnScores: [],
-      shouldSpawnEgg: false,
-      pendingEggRarity: null
-    };
-  }),
+  resetGame: () => set((state) => ({
+    status: 'menu',
+    score: 0,
+    speed: INITIAL_SPEED,
+    gameTime: 0,
+    activePowerup: state.activePowerup,
+    isSandstorm: true,
+    floatingTexts: [],
+    isTransitioning: false,
+    transitionStartTime: 0,
+    pendingScenario: null,
+    fogSettings: INITIAL_FOG_SETTINGS,
+    coldTimer: 30,
+    mummySlowUntil: 0,
+    originalFogDensity: null,
+    eatingUntil: 0,
+    currentRunEggs: { common: 0, rare: 0, ultraRare: 0 },
+    eggsInTail: [],
+    eggSpawnScores: [],
+    shouldSpawnEgg: false,
+    pendingEggRarity: null
+  })),
   togglePause: () => set((state) => {
     if (state.status === 'playing') return { status: 'paused' };
     if (state.status === 'paused') return { status: 'playing' };
     return {};
   }),
-  incrementScore: (points) => set((state) => {
-    let multiplier = 1;
-    if (state.difficulty === 'hard') multiplier = 1.2;
-    if (state.difficulty === 'easy') multiplier = 0.6;
-    const newScore = state.score + (points * multiplier);
-    
-    // Retrieve current level config
-    const currentLevel = LEVELS.find(l => l.id === state.currentLevelId) || LEVELS[0];
+  incrementScore: (points) => {
+    set((state) => {
+      const newScore = state.score + points;
 
-    // Check if target score is reached
-    if (newScore >= currentLevel.maxScore) {
-      // Level completed! Calculate stars based on collected eggs in tail (max 3)
-      const stars = Math.min(3, state.eggsInTail.length);
-      
-      // Update level completion records
-      const levelStars = { ...state.levelStars, [state.currentLevelId]: Math.max(state.levelStars[state.currentLevelId] || 0, stars) };
-      const levelHighScores = { ...state.levelHighScores, [state.currentLevelId]: Math.max(state.levelHighScores[state.currentLevelId] || 0, Math.floor(newScore)) };
-      
-      localStorage.setItem('trex-level-stars', JSON.stringify(levelStars));
-      localStorage.setItem('trex-level-highscores', JSON.stringify(levelHighScores));
+      let newSpeed = INITIAL_SPEED + (ACCELERATION_PER_FRAME * (state.gameTime * 60));
+      if (newSpeed > MAX_SPEED) newSpeed = MAX_SPEED;
 
-      // Unlock next level if this was the highest unlocked
-      let highestUnlockedLevelId = state.highestUnlockedLevelId;
-      if (state.currentLevelId === state.highestUnlockedLevelId && state.currentLevelId < LEVELS.length) {
-        highestUnlockedLevelId = state.currentLevelId + 1;
-        localStorage.setItem('trex-unlocked-level', highestUnlockedLevelId.toString());
+      // Egg spawning checks (milestones seeded by generateEggSpawnPattern)
+      let eggSpawnScores = [...state.eggSpawnScores];
+      let shouldSpawnEgg = state.shouldSpawnEgg;
+      let pendingEggRarity = state.pendingEggRarity;
+
+      if (eggSpawnScores.length > 0 && newScore >= eggSpawnScores[0] && !shouldSpawnEgg) {
+        eggSpawnScores.shift();
+        shouldSpawnEgg = true;
+        pendingEggRarity = rollEggRarity();
       }
 
-      // Convert eggs in tail to coins (50 for common, 150 for rare, 250 for ultra-rare)
-      const commonVal = state.currentRunEggs.common * 50;
-      const rareVal = state.currentRunEggs.rare * 150;
-      const ultraRareVal = state.currentRunEggs.ultraRare * 250;
-      const totalCoinsGained = commonVal + rareVal + ultraRareVal;
-      const newCoins = state.coins + totalCoinsGained;
-      localStorage.setItem('trex-coins', newCoins.toString());
-
       return {
-        status: 'levelcleared',
-        score: Math.floor(newScore),
-        levelStars,
-        levelHighScores,
-        highestUnlockedLevelId,
-        coins: newCoins,
-        activePowerup: 'none',
-        floatingTexts: []
+        score: newScore,
+        speed: newSpeed,
+        eggSpawnScores,
+        shouldSpawnEgg,
+        pendingEggRarity
       };
-    }
-    
-    let initialSpeed = 9;
-    if (state.difficulty === 'easy') initialSpeed = 7.5;
-    if (state.difficulty === 'hard') initialSpeed = 12;
-    
-    const acceleration = 0.001; // Constant acceleration as requested
-    
-    // gameTime is in seconds. Assuming 60 frames per second.
-    const framesElapsed = state.gameTime * 60;
-    
-    let newSpeed = initialSpeed + (acceleration * framesElapsed);
-    if (newSpeed > 37.5) newSpeed = 37.5; // Max speed cap of 37.5 (2.5x of 15)
+    });
 
-    // Egg spawning checks (milestones already set in startGame)
-    let eggSpawnScores = [...state.eggSpawnScores];
-    let shouldSpawnEgg = state.shouldSpawnEgg;
-    let pendingEggRarity = state.pendingEggRarity;
-
-    if (eggSpawnScores.length > 0 && newScore >= eggSpawnScores[0] && !shouldSpawnEgg) {
-       eggSpawnScores.shift();
-       shouldSpawnEgg = true;
-       
-       const rand = Math.random();
-       if (rand < 0.6) {
-          pendingEggRarity = 'common';
-       } else if (rand < 0.9) {
-          pendingEggRarity = 'rare';
-       } else {
-          pendingEggRarity = 'ultraRare';
-       }
+    // Refill the milestone queue once it's exhausted and the last egg has
+    // already been consumed by the obstacle spawner.
+    const state = get();
+    if (state.eggSpawnScores.length === 0 && !state.shouldSpawnEgg) {
+      state.generateEggSpawnPattern();
     }
-    
-    return { 
-      score: newScore, 
-      speed: newSpeed,
-      eggSpawnScores,
-      shouldSpawnEgg,
-      pendingEggRarity
-    };
-  }),
+  },
   increaseSpeed: (amount) => set((state) => ({ speed: state.speed + amount })),
   setCameraMode: (cameraMode) => set({ cameraMode }),
   setScenario: (scenario) => set({ scenario, isSandstorm: scenario === 'desert' }),
-  setMixedMode: (isMixed) => set({ isMixedMode: isMixed }),
-  setDifficulty: (difficulty) => set({ difficulty }),
   setGraphicsQuality: (quality) => {
     localStorage.setItem('trex-graphics-quality', quality);
     set({ graphicsQuality: quality });
@@ -491,12 +353,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (newLives <= 0) {
       const newHighScore = Math.max(Math.floor(state.score), state.highScore);
       localStorage.setItem('trex-highscore', newHighScore.toString());
-      
-      const updates: Partial<GameState> = { 
-        status: 'gameover', 
-        highScore: newHighScore, 
-        score: Math.floor(state.score), 
-        activePowerup: 'none', 
+
+      const updates: Partial<GameState> = {
+        status: 'gameover',
+        highScore: newHighScore,
+        score: Math.floor(state.score),
+        activePowerup: 'none',
         lives: 0,
         mummySlowUntil: 0,
         originalFogDensity: null,
@@ -507,12 +369,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         updates.fogSettings = { ...state.fogSettings, [state.scenario]: state.originalFogDensity };
       }
 
-      // Convert eggs on death
-      const commonVal = state.currentRunEggs.common * 50;
-      const rareVal = state.currentRunEggs.rare * 150;
-      const ultraRareVal = state.currentRunEggs.ultraRare * 250;
-      const totalCoinsGained = commonVal + rareVal + ultraRareVal;
-      const newCoins = state.coins + totalCoinsGained;
+      const newCoins = state.coins + eggsToCoins(state.currentRunEggs);
       localStorage.setItem('trex-coins', newCoins.toString());
       updates.coins = newCoins;
 
@@ -520,12 +377,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
     return { lives: newLives };
   }),
-  gainLife: () => set((state) => {
-    let maxLives = 1;
-    if (state.difficulty === 'easy') maxLives = 5;
-    if (state.difficulty === 'medium') maxLives = 3;
-    return { lives: Math.min(state.lives + 1, maxLives) };
-  }),
+  gainLife: () => set((state) => ({ lives: Math.min(state.lives + 1, MAX_LIVES) })),
   setInvincibleUntil: (time) => set({ invincibleUntil: time }),
   setHeavyJumpUntil: (time) => set({ heavyJumpUntil: time }),
   setWeakJumpUntil: (time) => set({ weakJumpUntil: time }),
@@ -543,7 +395,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   addGameTime: (delta) => set((state) => {
     const newTime = state.gameTime + delta;
     const updates: Partial<GameState> = { gameTime: newTime };
-    
+
     if (state.mummySlowUntil > 0 && performance.now() >= state.mummySlowUntil) {
       if (state.originalFogDensity) {
         updates.fogSettings = { ...state.fogSettings, [state.scenario]: state.originalFogDensity };
@@ -551,11 +403,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       updates.mummySlowUntil = 0;
       updates.originalFogDensity = null;
     }
-    
+
     if (state.activePowerup !== 'none' && newTime > state.powerupEndTime) {
       updates.activePowerup = 'none';
     }
-    
+
     if (state.scenario === 'snow' && state.status === 'playing') {
       const newColdTimer = Math.max(0, state.coldTimer - delta);
       updates.coldTimer = newColdTimer;
@@ -564,26 +416,35 @@ export const useGameStore = create<GameState>((set, get) => ({
           updates.originalFogDensity = state.fogSettings.snow;
         }
         updates.fogSettings = { ...state.fogSettings, snow: 'high' };
-        
+
         // Add floating text
         const newText: FloatingText = { id: Math.random().toString(36).substr(2, 9), text: 'FROZEN!', x: 0, y: 5, z: 0, color: '#3b82f6', createdAt: performance.now() };
         updates.floatingTexts = [...state.floatingTexts, newText];
       }
     }
-    
+
     if (state.isTransitioning && state.pendingScenario) {
       const elapsed = newTime - state.transitionStartTime;
-      if (elapsed >= 2.0 && state.scenario !== state.pendingScenario) {
+      if (elapsed >= BIOME_TRANSITION_SWAP_TIME && state.scenario !== state.pendingScenario) {
         updates.scenario = state.pendingScenario;
         updates.isSandstorm = state.pendingScenario === 'desert';
-        updates.invincibleUntil = performance.now() + 2000; // 2 seconds of invincibility after transition
+        updates.invincibleUntil = performance.now() + BIOME_TRANSITION_INVINCIBILITY_MS;
       }
-      if (elapsed >= 3.0) {
+      if (elapsed >= BIOME_TRANSITION_END_TIME) {
         updates.isTransitioning = false;
         updates.pendingScenario = null;
       }
+    } else if (state.status === 'playing') {
+      // Infinite mode: biomes auto-cycle as the score climbs.
+      const targetIndex = Math.floor(state.score / BIOME_CYCLE_SCORE) % BIOME_ORDER.length;
+      const targetScenario = BIOME_ORDER[targetIndex];
+      if (targetScenario !== state.scenario) {
+        updates.isTransitioning = true;
+        updates.pendingScenario = targetScenario;
+        updates.transitionStartTime = newTime;
+      }
     }
-    
+
     return updates;
   }),
   activatePowerup: (powerup, duration) => set((state) => {
@@ -595,8 +456,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       super: { name: 'SUPERDINO', desc: 'DESTRUA TUDO!!!' },
     };
     const pInfo = info[powerup] || { name: powerup.toUpperCase(), desc: '' };
-    return { 
-      activePowerup: powerup, 
+    return {
+      activePowerup: powerup,
       powerupEndTime: state.gameTime + duration,
       cinematicPowerup: { ...pInfo, type: powerup },
       slowmoUntil: performance.now() + 1500
@@ -668,14 +529,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       return true;
     }
     const cleanCode = trimmed.toUpperCase();
-    if (cleanCode === 'VOXELTREX' || cleanCode === 'GEMINI') {
-      const state = get();
-      if (state.ownedSkins.includes('dino-rainbow')) return true; // Already owned
-      const newOwned = [...state.ownedSkins, 'dino-rainbow'];
-      localStorage.setItem('trex-owned-skins', JSON.stringify(newOwned));
-      set({ ownedSkins: newOwned });
-      return true;
-    }
     if (cleanCode === 'PATO' || cleanCode === 'QUACK' || cleanCode === 'DUCKDINO') {
       const state = get();
       if (state.ownedSkins.includes('dino-duck')) return true; // Already owned
@@ -688,6 +541,14 @@ export const useGameStore = create<GameState>((set, get) => ({
       const state = get();
       if (state.ownedSkins.includes('dino-shark')) return true; // Already owned
       const newOwned = [...state.ownedSkins, 'dino-shark'];
+      localStorage.setItem('trex-owned-skins', JSON.stringify(newOwned));
+      set({ ownedSkins: newOwned });
+      return true;
+    }
+    if (cleanCode === 'CDINO') {
+      const state = get();
+      if (state.ownedSkins.includes('dino-rabbit')) return true; // Already owned
+      const newOwned = [...state.ownedSkins, 'dino-rabbit'];
       localStorage.setItem('trex-owned-skins', JSON.stringify(newOwned));
       set({ ownedSkins: newOwned });
       return true;
@@ -707,20 +568,4 @@ export const useGameStore = create<GameState>((set, get) => ({
     scores.sort((a, b) => a - b);
     set({ eggSpawnScores: scores, shouldSpawnEgg: false, pendingEggRarity: null });
   },
-  selectLevel: (levelId) => {
-    const level = LEVELS.find(l => l.id === levelId) || LEVELS[0];
-    localStorage.setItem('trex-current-level', levelId.toString());
-    set({
-      currentLevelId: levelId,
-      scenario: level.map,
-      isSandstorm: level.map === 'desert'
-    });
-  },
-  clearLevel: () => set((state) => {
-    return {};
-  }),
-  getCurrentLevel: () => {
-    const state = get();
-    return LEVELS.find(l => l.id === state.currentLevelId) || LEVELS[0];
-  }
 }));

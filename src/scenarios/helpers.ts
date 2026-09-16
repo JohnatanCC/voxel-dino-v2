@@ -1,22 +1,30 @@
 import { useGameStore } from '../store/gameStore';
 import { ObstacleType, PowerupType } from './types';
+import {
+  LIFE_CHANCE,
+  POWERUP_CHANCE,
+  GAP_BASE_ADD,
+  GAP_SPEED_MULTIPLIER,
+  GAP_RANDOM_SPEED_MULTIPLIER,
+  GAP_NARROW_SCORE_DIVISOR,
+  GAP_MIN_MULTIPLIER,
+  FREQUENCY_RAMP_SCORE,
+  FREQUENCY_RAMP_MULTIPLIER,
+} from '../config/balance';
 
 export const SPAWN_DISTANCE = 30;
 export const DESPAWN_DISTANCE = -10;
 
 /**
- * Tries to generate a global obstacle (like a powerup or extra life) based on random chance and difficulty.
+ * Tries to generate a global obstacle (like a powerup or extra life) based on random chance.
  * Returns the generated properties or null if scenario-specific obstacles should be generated instead.
  */
 export function tryGenerateGlobalObstacle(): { type: ObstacleType; y: number; powerupType?: PowerupType } | null {
-  const { difficulty, activePowerup } = useGameStore.getState();
+  const { activePowerup } = useGameStore.getState();
   const rand = Math.random();
-  
-  let lifeChance = 0;
-  if (difficulty === 'easy') lifeChance = 0.03;
-  if (difficulty === 'medium') lifeChance = 0.01;
 
-  let powerupChance = difficulty === 'hard' ? 0.01 : 0.03;
+  const lifeChance = LIFE_CHANCE;
+  let powerupChance = POWERUP_CHANCE;
   if (activePowerup !== 'none') {
     powerupChance = 0;
   }
@@ -49,17 +57,15 @@ export function calculateNextObstaclePosition(): number {
   const state = useGameStore.getState();
   const score = state.score;
   const currentSpeed = state.getCurrentSpeed();
-  
-  // Gap narrows down from 1.0 to 0.55 as score reaches 45,000 pts
-  const gapMultiplier = Math.max(0.55, 1.0 - (score / 45000));
-  
-  const currentLevel = state.getCurrentLevel();
-  const isLevel5 = currentLevel && currentLevel.levelNumber >= 5;
-  const frequencyMultiplier = isLevel5 ? 0.65 : 1.0;
-  
-  const minGap = ((currentSpeed * 1.1) + 6) * gapMultiplier * frequencyMultiplier;
-  const gap = minGap + Math.random() * (currentSpeed * 0.8) * gapMultiplier * frequencyMultiplier;
-  
+
+  // Gap narrows down as score climbs
+  const gapMultiplier = Math.max(GAP_MIN_MULTIPLIER, 1.0 - (score / GAP_NARROW_SCORE_DIVISOR));
+
+  const frequencyMultiplier = score > FREQUENCY_RAMP_SCORE ? FREQUENCY_RAMP_MULTIPLIER : 1.0;
+
+  const minGap = ((currentSpeed * GAP_SPEED_MULTIPLIER) + GAP_BASE_ADD) * gapMultiplier * frequencyMultiplier;
+  const gap = minGap + Math.random() * (currentSpeed * GAP_RANDOM_SPEED_MULTIPLIER) * gapMultiplier * frequencyMultiplier;
+
   return SPAWN_DISTANCE + gap;
 }
 
