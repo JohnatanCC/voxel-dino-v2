@@ -1,8 +1,8 @@
 import { ComponentType, Ref } from 'react';
 import * as THREE from 'three';
 
-export type ObstacleType = 'bird' | 'cactus-small' | 'cactus-large' | 'powerup' | 'stump-low' | 'stump-high' | 'puddle' | 'rock-large' | 'snowman' | 'rock-small' | 'firebox' | 'swamp-log' | 'swamp-fly' | 'skull' | 'croc' | 'tree-hole' | 'mummy' | 'egg';
-export type PowerupType = 'wings' | 'super' | 'ghost' | 'jaw' | 'earth' | 'life';
+export type ObstacleType = 'bird' | 'cactus-small' | 'cactus-large' | 'powerup' | 'stump-low' | 'stump-high' | 'snowman' | 'firebox' | 'swamp-log' | 'swamp-fly' | 'croc' | 'tree-hole' | 'egg' | 'sand-worm' | 'mushroom' | 'leech' | 'ice-block';
+export type PowerupType = 'wings' | 'super' | 'ghost' | 'jaw' | 'earth' | 'dragon' | 'life';
 
 export const DINO_HITBOX_OFFSET = -0.15;
 
@@ -12,19 +12,18 @@ export const OBSTACLE_HITBOX_OFFSETS: Record<string, number> = {
   'bird': -0.15,
   'stump-low': -0.15,
   'stump-high': -0.2,
-  'puddle': -0.05,
-  'rock-large': -0.2,
-  'rock-small': -0.15,
   'snowman': -0.2,
   'firebox': -0.1,
   'swamp-log': -0.2,
   'swamp-fly': -0.15,
-  'skull': -0.15,
   'croc': -0.2,
   'tree-hole': -0.2,
   'powerup': -0.1,
-  'mummy': -0.15,
-  'egg': -0.15
+  'egg': -0.15,
+  'sand-worm': -0.2,
+  'mushroom': -0.2,
+  'leech': -0.05,
+  'ice-block': -0.15
 };
 
 export interface ObstacleData {
@@ -32,6 +31,7 @@ export interface ObstacleData {
   type: ObstacleType;
   x: number;
   y: number;
+  scale?: number;
   powerupType?: PowerupType;
   eggRarity?: 'common' | 'rare' | 'ultraRare';
   ref: React.RefObject<THREE.Group | null>;

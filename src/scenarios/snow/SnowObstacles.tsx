@@ -5,9 +5,10 @@ import { ObstacleData, ObstacleType, PowerupType } from '../types';
 import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition } from '../helpers';
 import * as THREE from 'three';
 import { VoxelEgg } from '../../components/VoxelEgg';
-import { getAllowedObstacles } from '../../config/balance';
+import { getAllowedObstacles, ICE_BLOCK_WARNING_S, ICE_BLOCK_FALL_HEIGHT } from '../../config/balance';
+import { PowerupBox } from '../shared/PowerupBox';
 
-export type SnowObstacleType = 'rock-large' | 'snowman' | 'rock-small' | 'powerup' | 'firebox';
+export type SnowObstacleType = 'ice-block' | 'snowman' | 'powerup' | 'firebox';
 
 // Reusable static materials
 const snowmanBodyMaterial = new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.95 });
@@ -16,9 +17,8 @@ const snowmanCoalMaterial = new THREE.MeshStandardMaterial({ color: '#1e293b', r
 const snowmanStickMaterial = new THREE.MeshStandardMaterial({ color: '#78350f', roughness: 0.9 });
 const snowmanHatMaterial = new THREE.MeshStandardMaterial({ color: '#111827', roughness: 0.8 });
 
-const rockBaseMaterial = new THREE.MeshStandardMaterial({ color: '#64748b', roughness: 0.9, flatShading: true });
-const rockSnowMaterial = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8, flatShading: true });
-const powerupTextMaterial = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+const iceBlockMaterial = new THREE.MeshStandardMaterial({ color: '#a8e6ff', roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 });
+const iceShadowMaterial = new THREE.MeshBasicMaterial({ color: '#0c1a24', transparent: true, opacity: 0.4 });
 
 // Campfire materials
 const woodMaterial = new THREE.MeshStandardMaterial({ color: '#78350f', roughness: 0.9 });
@@ -37,10 +37,8 @@ const snowmanStickGeo = new THREE.BoxGeometry(0.07, 0.07, 0.45);
 const snowmanHatBrimGeo = new THREE.BoxGeometry(0.55, 0.04, 0.55);
 const snowmanHatTopGeo = new THREE.BoxGeometry(0.32, 0.35, 0.32);
 
-const rockLargeGeo = new THREE.DodecahedronGeometry(1.2, 0);
-const rockLargeSnowGeo = new THREE.DodecahedronGeometry(1.1, 0);
-const rockSmallGeo = new THREE.DodecahedronGeometry(0.7, 0);
-const rockSmallSnowGeo = new THREE.DodecahedronGeometry(0.65, 0);
+const iceBlockGeo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
+const iceShadowGeo = new THREE.CylinderGeometry(0.75, 0.75, 0.05, 16);
 
 // Campfire geometries
 const logGeo = new THREE.BoxGeometry(0.8, 0.22, 0.22);
@@ -49,37 +47,53 @@ const flameBaseGeo = new THREE.BoxGeometry(0.42, 0.42, 0.42);
 const flameMidGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
 const flameTopGeo = new THREE.BoxGeometry(0.18, 0.18, 0.18);
 
-const powerupBoxGeo = new THREE.BoxGeometry(1, 1, 1);
-const powerupHorizontalBarGeo = new THREE.BoxGeometry(0.5, 0.15, 0.05);
-const powerupVerticalBarGeo = new THREE.BoxGeometry(0.15, 0.5, 0.05);
-const powerupQ1Geo = new THREE.BoxGeometry(0.4, 0.1, 0.05);
-const powerupQ2Geo = new THREE.BoxGeometry(0.1, 0.2, 0.05);
-const powerupQ3Geo = new THREE.BoxGeometry(0.3, 0.1, 0.05);
-const powerupQ4Geo = new THREE.BoxGeometry(0.1, 0.1, 0.05);
-
-const RockLargeObstacle = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
+export const IceBlockObstacle = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
   const innerRef = useRef<THREE.Group>(null);
+  const blockRef = useRef<THREE.Mesh>(null);
+  const shadowRef = useRef<THREE.Mesh>(null);
+  const timer = useRef(0);
+  const prevX = useRef(x);
+
   useImperativeHandle(ref, () => innerRef.current!);
+
+  useFrame((_, delta) => {
+    // A large forward jump in x means this slot was just recycled: restart the telegraph.
+    if (x - prevX.current > 10) {
+      timer.current = 0;
+    }
+    prevX.current = x;
+
+    if (x <= DESPAWN_DISTANCE) return;
+
+    timer.current += delta;
+    const progress = Math.min(timer.current / ICE_BLOCK_WARNING_S, 1);
+
+    if (blockRef.current) {
+      if (progress < 1) {
+        const eased = progress * progress; // accelerates like a real fall
+        blockRef.current.position.y = ICE_BLOCK_FALL_HEIGHT * (1 - eased);
+        blockRef.current.rotation.x += delta * 3;
+        blockRef.current.rotation.z += delta * 2;
+      } else {
+        blockRef.current.position.y = 0;
+        blockRef.current.rotation.set(0, 0, 0);
+      }
+    }
+    if (shadowRef.current) {
+      const shadowScale = 0.35 + progress * 0.65;
+      shadowRef.current.scale.set(shadowScale, 1, shadowScale);
+    }
+  });
+
   return (
     <group ref={innerRef} position={[x, y, 0]}>
-      <mesh position={[0, 0.75, 0]} material={rockBaseMaterial} geometry={rockLargeGeo} castShadow receiveShadow />
-      <mesh position={[0, 1.2, 0]} material={rockSnowMaterial} geometry={rockLargeSnowGeo} castShadow receiveShadow />
+      <mesh ref={shadowRef} position={[0, 0.02, 0]} material={iceShadowMaterial} geometry={iceShadowGeo} />
+      <mesh ref={blockRef} position={[0, ICE_BLOCK_FALL_HEIGHT, 0]} castShadow receiveShadow material={iceBlockMaterial} geometry={iceBlockGeo} />
     </group>
   );
 });
 
-const RockSmallObstacle = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
-  const innerRef = useRef<THREE.Group>(null);
-  useImperativeHandle(ref, () => innerRef.current!);
-  return (
-    <group ref={innerRef} position={[x, y, 0]}>
-      <mesh position={[0, 0.4, 0]} material={rockBaseMaterial} geometry={rockSmallGeo} castShadow receiveShadow />
-      <mesh position={[0, 0.7, 0]} material={rockSnowMaterial} geometry={rockSmallSnowGeo} castShadow receiveShadow />
-    </group>
-  );
-});
-
-const LiveSnowmanObstacle = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
+export const LiveSnowmanObstacle = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
   const innerRef = useRef<THREE.Group>(null);
   const headGroupRef = useRef<THREE.Group>(null);
 
@@ -132,7 +146,7 @@ const LiveSnowmanObstacle = forwardRef<THREE.Group, { x: number; y: number }>(({
   );
 });
 
-const CampfireObstacle = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
+export const CampfireObstacle = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
   const innerRef = useRef<THREE.Group>(null);
   const flameBaseRef = useRef<THREE.Mesh>(null);
   const flameMidRef = useRef<THREE.Mesh>(null);
@@ -178,55 +192,6 @@ const CampfireObstacle = forwardRef<THREE.Group, { x: number; y: number }>(({ x,
   );
 });
 
-const PowerupBox = forwardRef<THREE.Group, { x: number; y: number; type?: PowerupType }>(({ x, y, type }, ref) => {
-  const innerRef = useRef<THREE.Group>(null);
-  
-  useImperativeHandle(ref, () => innerRef.current!);
-
-  useFrame(({ clock }) => {
-    if (innerRef.current) {
-      const time = clock.getElapsedTime();
-      innerRef.current.rotation.y = time * 2;
-      innerRef.current.position.y = y + Math.sin(time * 5) * 0.2;
-    }
-  });
-
-  const isLife = type === 'life';
-  const color = isLife ? "#ef4444" : "#fbbf24";
-  const powerupMaterial = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.5, roughness: 0.2, metalness: 0.8 });
-
-  return (
-    <group ref={innerRef} position={[x, y, 0]}>
-      <mesh castShadow receiveShadow material={powerupMaterial} geometry={powerupBoxGeo} />
-      {isLife ? (
-        <group position={[0, 0, 0.51]}>
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupHorizontalBarGeo} />
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupVerticalBarGeo} />
-        </group>
-      ) : (
-        <group position={[0, 0, 0.51]}>
-           <mesh position={[0, 0.2, 0]} material={powerupTextMaterial} geometry={powerupQ1Geo} />
-           <mesh position={[0.2, 0.1, 0]} material={powerupTextMaterial} geometry={powerupQ2Geo} />
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupQ3Geo} />
-           <mesh position={[0, -0.15, 0]} material={powerupTextMaterial} geometry={powerupQ4Geo} />
-        </group>
-      )}
-      {isLife ? (
-        <group position={[0, 0, -0.51]} rotation={[0, Math.PI, 0]}>
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupHorizontalBarGeo} />
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupVerticalBarGeo} />
-        </group>
-      ) : (
-        <group position={[0, 0, -0.51]} rotation={[0, Math.PI, 0]}>
-           <mesh position={[0, 0.2, 0]} material={powerupTextMaterial} geometry={powerupQ1Geo} />
-           <mesh position={[0.2, 0.1, 0]} material={powerupTextMaterial} geometry={powerupQ2Geo} />
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupQ3Geo} />
-           <mesh position={[0, -0.15, 0]} material={powerupTextMaterial} geometry={powerupQ4Geo} />
-        </group>
-      )}
-    </group>
-  );
-});
 
 export const SnowObstacles = forwardRef<ObstacleData[]>((props, ref) => {
   const { status, speed, gameId, isTransitioning } = useGameStore();
@@ -235,7 +200,7 @@ export const SnowObstacles = forwardRef<ObstacleData[]>((props, ref) => {
   const [pool] = useState<ObstacleData[]>(() =>
     Array.from({ length: 8 }, (_, i) => ({
       id: i,
-      type: 'rock-large',
+      type: 'ice-block',
       x: -100,
       y: 0,
       ref: createRef<THREE.Group>(),
@@ -294,7 +259,7 @@ export const SnowObstacles = forwardRef<ObstacleData[]>((props, ref) => {
       if (inactiveSlot) {
         // Decide obstacle type: 10% chance for powerup, 30% campfire, 60% standard obstacles
         const rand = Math.random();
-        let chosenType: SnowObstacleType | 'egg' = 'rock-large';
+        let chosenType: SnowObstacleType | 'egg' = 'ice-block';
         let spawnY = 0;
         let chosenPowerup: PowerupType | undefined;
         let chosenEggRarity: 'common' | 'rare' | 'ultraRare' | undefined;
@@ -306,15 +271,15 @@ export const SnowObstacles = forwardRef<ObstacleData[]>((props, ref) => {
           chosenPowerup = undefined;
           chosenEggRarity = store.pendingEggRarity;
           useGameStore.setState({ shouldSpawnEgg: false, pendingEggRarity: null });
-        } else if (rand < 0.1) {
+        } else if (rand < 0.1 && store.activePowerup === 'none' && performance.now() >= store.powerupCooldownUntil) {
           chosenType = 'powerup';
           spawnY = Math.random() > 0.5 ? 2.5 : 1.2; // high or low
-          const powerupOpts: PowerupType[] = ['wings', 'super', 'ghost', 'jaw', 'earth', 'life'];
+          const powerupOpts: PowerupType[] = ['wings', 'super', 'ghost', 'jaw', 'earth', 'dragon', 'life'];
           chosenPowerup = powerupOpts[Math.floor(Math.random() * powerupOpts.length)];
         } else {
           // Choose from obstacles unlocked so far for the snow scenario
           const allowed = getAllowedObstacles('snow', store.score) as SnowObstacleType[];
-          const fallbackType = allowed.length > 0 ? allowed[Math.floor(Math.random() * allowed.length)] : 'rock-large';
+          const fallbackType = allowed.length > 0 ? allowed[Math.floor(Math.random() * allowed.length)] : 'ice-block';
           chosenType = fallbackType;
           spawnY = 0;
         }
@@ -351,16 +316,12 @@ export const SnowObstacles = forwardRef<ObstacleData[]>((props, ref) => {
   return (
     <group>
       {pool.map(obs => {
-        if (obs.type === 'rock-large') {
-          return <RockLargeObstacle key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} />;
+        if (obs.type === 'ice-block') {
+          return <IceBlockObstacle key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} />;
         }
-        
+
         if (obs.type === 'snowman') {
           return <LiveSnowmanObstacle key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} />;
-        }
-        
-        if (obs.type === 'rock-small') {
-          return <RockSmallObstacle key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} />;
         }
 
         if (obs.type === 'firebox') {

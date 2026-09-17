@@ -2,48 +2,50 @@ import { useFrame } from '@react-three/fiber';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, createRef } from 'react';
 import * as THREE from 'three';
 import { useGameStore } from '../../store/gameStore';
-import { ObstacleData, ObstacleType, PowerupType } from '../types';
-import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition, isBirdEligible } from '../helpers';
+import { ObstacleData, ObstacleType } from '../types';
+import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition } from '../helpers';
 import { VoxelEgg } from '../../components/VoxelEgg';
-import { getAllowedObstacles } from '../../config/balance';
+import { getAllowedObstacles, FREQUENCY_RAMP_SCORE } from '../../config/balance';
+import { PowerupBox } from '../shared/PowerupBox';
 
 // Reusable static materials
 const woodMaterial = new THREE.MeshStandardMaterial({ color: '#78350f', roughness: 0.9 });
 const woodInnerMaterial = new THREE.MeshStandardMaterial({ color: '#d97706', roughness: 0.8 });
-const tropicalBirdMaterial = new THREE.MeshStandardMaterial({ color: '#ef4444', roughness: 0.6 }); // Red macaw
-const birdBeakMaterial = new THREE.MeshStandardMaterial({ color: '#fcd34d', roughness: 0.8 });
-const birdTailMaterial = new THREE.MeshStandardMaterial({ color: '#3b82f6', roughness: 0.8 });
-const waterMaterial = new THREE.MeshStandardMaterial({ color: '#0ea5e9', roughness: 0.1, transparent: true, opacity: 0.8 });
-const mudEdgeMaterial = new THREE.MeshStandardMaterial({ color: '#451a03', roughness: 1 });
-const puddleRockMaterial = new THREE.MeshStandardMaterial({ color: '#57534e', roughness: 0.9 });
-const powerupTextMaterial = new THREE.MeshBasicMaterial({ color: '#ffffff' });
 const treeHoleTrunkMaterial = new THREE.MeshStandardMaterial({ color: '#3f2715', roughness: 0.9 });
 const treeHoleLeavesMaterial = new THREE.MeshStandardMaterial({ color: '#16a34a', roughness: 0.9 });
+
+// Bee materials
+const beeBodyMaterial = new THREE.MeshStandardMaterial({ color: '#fbbf24', roughness: 0.6 });
+const beeStripeMaterial = new THREE.MeshStandardMaterial({ color: '#1c1917', roughness: 0.6 });
+const beeWingMaterial = new THREE.MeshStandardMaterial({ color: '#e0f2fe', roughness: 0.3, transparent: true, opacity: 0.55 });
+const beeStingerMaterial = new THREE.MeshStandardMaterial({ color: '#450a0a', roughness: 0.5 });
+const beeEyeMaterial = new THREE.MeshBasicMaterial({ color: '#000000' });
+const beeBrowMaterial = new THREE.MeshBasicMaterial({ color: '#1c1917' });
+
+// Mushroom materials
+const mushroomCapMaterial = new THREE.MeshStandardMaterial({ color: '#7c3aed', roughness: 0.7 });
+const mushroomStemMaterial = new THREE.MeshStandardMaterial({ color: '#f5f0e6', roughness: 0.8 });
+const mushroomSpotMaterial = new THREE.MeshStandardMaterial({ color: '#c4b5fd', roughness: 0.5, emissive: '#a78bfa', emissiveIntensity: 0.5 });
+const mushroomGillMaterial = new THREE.MeshStandardMaterial({ color: '#4c1d95', roughness: 0.9 });
 
 // Reusable static geometries
 const cylinderStumpHighGeo = new THREE.CylinderGeometry(0.5, 0.6, 2.5, 8);
 const cylinderStumpLowGeo = new THREE.CylinderGeometry(0.5, 0.6, 1.5, 8);
 const cylinderStumpInnerGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.02, 8);
 
-const birdBodyGeo = new THREE.BoxGeometry(1.0, 0.5, 0.5);
-const birdWingGeo = new THREE.BoxGeometry(0.8, 0.1, 1.2);
-const birdHeadGeo = new THREE.BoxGeometry(0.5, 0.5, 0.4);
-const birdBeakGeo = new THREE.BoxGeometry(0.4, 0.2, 0.1);
-const birdTailGeo = new THREE.BoxGeometry(0.6, 0.1, 0.3);
+const beeBodyGeo = new THREE.BoxGeometry(0.8, 0.6, 0.6);
+const beeStripeGeo = new THREE.BoxGeometry(0.16, 0.62, 0.62);
+const beeWingGeo = new THREE.BoxGeometry(0.5, 0.05, 0.9);
+const beeHeadGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+const beeStingerGeo = new THREE.BoxGeometry(0.3, 0.1, 0.1);
+const beeEyeGeo = new THREE.BoxGeometry(0.08, 0.15, 0.08);
+const beeBrowGeo = new THREE.BoxGeometry(0.14, 0.05, 0.08);
+const beeAntennaGeo = new THREE.BoxGeometry(0.04, 0.22, 0.04);
 
-const puddleEdgeGeo = new THREE.CylinderGeometry(2.2, 2.2, 0.05, 16);
-const puddleWaterGeo = new THREE.CylinderGeometry(1.9, 1.9, 0.05, 16);
-const decaRockGeo1 = new THREE.DodecahedronGeometry(0.3, 0);
-const decaRockGeo2 = new THREE.DodecahedronGeometry(0.2, 0);
-const decaRockGeo3 = new THREE.DodecahedronGeometry(0.25, 0);
-
-const powerupBoxGeo = new THREE.BoxGeometry(1, 1, 1);
-const powerupHorizontalBarGeo = new THREE.BoxGeometry(0.5, 0.15, 0.05);
-const powerupVerticalBarGeo = new THREE.BoxGeometry(0.15, 0.5, 0.05);
-const powerupQ1Geo = new THREE.BoxGeometry(0.4, 0.1, 0.05);
-const powerupQ2Geo = new THREE.BoxGeometry(0.1, 0.2, 0.05);
-const powerupQ3Geo = new THREE.BoxGeometry(0.3, 0.1, 0.05);
-const powerupQ4Geo = new THREE.BoxGeometry(0.1, 0.1, 0.05);
+const mushroomCapGeo = new THREE.SphereGeometry(1.0, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+const mushroomGillGeo = new THREE.CylinderGeometry(0.85, 0.6, 0.15, 10);
+const mushroomStemGeo = new THREE.CylinderGeometry(0.3, 0.4, 1.3, 8);
+const mushroomSpotGeo = new THREE.SphereGeometry(0.14, 6, 6);
 
 const treeHoleHitboxGeo = new THREE.BoxGeometry(1.5, 6, 2);
 const treeHoleCanopyGeo = new THREE.BoxGeometry(2, 4, 5);
@@ -63,24 +65,28 @@ export const Stump = forwardRef<THREE.Group, { x: number; scale: number; isHigh?
   }
 );
 
-const TropicalBird = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
+// --- Giant Angry Bee: forest's flying threat (keeps ObstacleType 'bird' to inherit the eat/jaw mechanics) ---
+
+export const GiantBee = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
   const innerRef = useRef<THREE.Group>(null);
-  
+
   useImperativeHandle(ref, () => innerRef.current!);
 
   useFrame(({ clock }) => {
     if (innerRef.current) {
       const time = clock.getElapsedTime();
-      
-      // Bobbing Y up and down smoothly
-      const bobY = Math.sin(time * 4 + x) * 0.45;
-      innerRef.current.position.y = y + bobY;
 
-      const wingL = innerRef.current.children[1] as THREE.Mesh;
-      const wingR = innerRef.current.children[2] as THREE.Mesh;
+      // Erratic angry-bee bobbing + darting
+      const bobY = Math.sin(time * 5 + x) * 0.4;
+      const dartZ = Math.sin(time * 7 + x * 2) * 0.3;
+      innerRef.current.position.y = y + bobY;
+      innerRef.current.position.z = dartZ;
+
+      const wingL = innerRef.current.children[2] as THREE.Mesh;
+      const wingR = innerRef.current.children[3] as THREE.Mesh;
       if (wingL && wingR) {
-        wingL.rotation.x = Math.sin(time * 20) * 0.6;
-        wingR.rotation.x = -Math.sin(time * 20) * 0.6;
+        wingL.rotation.x = Math.sin(time * 35) * 0.7;
+        wingR.rotation.x = -Math.sin(time * 35) * 0.7;
       }
     }
   });
@@ -88,115 +94,70 @@ const TropicalBird = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }
   return (
     <group ref={innerRef} position={[x, y, 0]}>
       {/* Body */}
-      <mesh position={[0, 0, 0]} castShadow receiveShadow material={tropicalBirdMaterial} geometry={birdBodyGeo} />
+      <mesh position={[0, 0, 0]} castShadow receiveShadow material={beeBodyMaterial} geometry={beeBodyGeo} />
+      {/* Stripes */}
+      <mesh position={[-0.15, 0, 0]} material={beeStripeMaterial} geometry={beeStripeGeo} />
+      <mesh position={[0.15, 0, 0]} material={beeStripeMaterial} geometry={beeStripeGeo} />
       {/* Wing L */}
-      <mesh position={[0, 0.2, 0.4]} castShadow material={tropicalBirdMaterial} geometry={birdWingGeo} />
+      <mesh position={[0, 0.3, 0.35]} castShadow material={beeWingMaterial} geometry={beeWingGeo} />
       {/* Wing R */}
-      <mesh position={[0, 0.2, -0.4]} castShadow material={tropicalBirdMaterial} geometry={birdWingGeo} />
+      <mesh position={[0, 0.3, -0.35]} castShadow material={beeWingMaterial} geometry={beeWingGeo} />
       {/* Head */}
-      <mesh position={[-0.5, 0.2, 0]} castShadow receiveShadow material={tropicalBirdMaterial} geometry={birdHeadGeo} />
-      {/* Beak */}
-      <mesh position={[-0.9, 0.1, 0]} castShadow receiveShadow material={birdBeakMaterial} geometry={birdBeakGeo} />
-      {/* Tail - Blue/Yellow for macaw look */}
-      <mesh position={[0.7, 0, 0]} castShadow receiveShadow material={birdTailMaterial} geometry={birdTailGeo} />
+      <mesh position={[-0.55, 0.05, 0]} castShadow receiveShadow material={beeBodyMaterial} geometry={beeHeadGeo} />
+      {/* Angry eyes */}
+      <mesh position={[-0.72, 0.08, 0.15]} material={beeEyeMaterial} geometry={beeEyeGeo} />
+      <mesh position={[-0.72, 0.08, -0.15]} material={beeEyeMaterial} geometry={beeEyeGeo} />
+      {/* Angry eyebrows */}
+      <mesh position={[-0.68, 0.2, 0.15]} rotation={[0, 0, 0.4]} material={beeBrowMaterial} geometry={beeBrowGeo} />
+      <mesh position={[-0.68, 0.2, -0.15]} rotation={[0, 0, -0.4]} material={beeBrowMaterial} geometry={beeBrowGeo} />
+      {/* Antennae */}
+      <mesh position={[-0.7, 0.32, 0.08]} rotation={[0, 0, -0.3]} material={beeStripeMaterial} geometry={beeAntennaGeo} />
+      <mesh position={[-0.7, 0.32, -0.08]} rotation={[0, 0, 0.3]} material={beeStripeMaterial} geometry={beeAntennaGeo} />
+      {/* Stinger */}
+      <mesh position={[0.55, -0.05, 0]} material={beeStingerMaterial} geometry={beeStingerGeo} />
     </group>
   );
 });
 
-const Puddle = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => {
-  const hitboxRef = useRef<THREE.Group>(null);
-  const visualRef = useRef<THREE.Group>(null);
-  
-  useImperativeHandle(ref, () => hitboxRef.current!);
+// --- Giant Mushroom: real damage + a temporary fog debuff (obstacleEffects.ts handles the effect) ---
 
-  useFrame(({ clock }) => {
-    if (hitboxRef.current && visualRef.current) {
-       visualRef.current.position.x = hitboxRef.current.position.x;
-       
-       const time = clock.getElapsedTime();
-       const croc = visualRef.current.children[1] as THREE.Mesh;
-       if (croc) {
-          croc.position.y = Math.sin(time * 3) * 0.1 + 0.2;
-       }
-    }
-  });
-
-  return (
-    <>
-      <group ref={hitboxRef} position={[x, 0, 0]}>
-         {/* Invisible Hitbox */}
-         <mesh position={[0, 1.5, 0]} visible={false} geometry={treeHoleHitboxGeo} />
-      </group>
-      
-      <group ref={visualRef} position={[x, 0, 0]}>
-        {/* Mud Edge */}
-        <mesh position={[0, 0.02, 0]} receiveShadow material={mudEdgeMaterial} geometry={puddleEdgeGeo} />
-        {/* Water Plane */}
-        <mesh position={[0, 0.04, 0]} receiveShadow material={waterMaterial} geometry={puddleWaterGeo} />
-        
-        {/* Some decorative rocks in the puddle */}
-        <mesh position={[1.2, 0.1, 0.5]} castShadow receiveShadow material={puddleRockMaterial} geometry={decaRockGeo1} />
-        <mesh position={[-0.8, 0.1, -1.2]} castShadow receiveShadow material={puddleRockMaterial} geometry={decaRockGeo2} />
-        <mesh position={[0.5, 0.1, 1.5]} castShadow receiveShadow material={puddleRockMaterial} geometry={decaRockGeo3} />
-      </group>
-    </>
-  );
-});
-
-const PowerupBox = forwardRef<THREE.Group, { x: number; y: number; type?: PowerupType }>(({ x, y, type }, ref) => {
+export const GiantMushroom = forwardRef<THREE.Group, { x: number; spotSeed: number }>(({ x, spotSeed }, ref) => {
   const innerRef = useRef<THREE.Group>(null);
-  
   useImperativeHandle(ref, () => innerRef.current!);
+
+  const spots = useRef(
+    Array.from({ length: 4 }, (_, i) => {
+      const angle = (i / 4) * Math.PI * 2 + spotSeed;
+      const r = 0.5 + (spotSeed % 0.3);
+      return [Math.cos(angle) * r, 1.55, Math.sin(angle) * r] as [number, number, number];
+    })
+  ).current;
 
   useFrame(({ clock }) => {
     if (innerRef.current) {
       const time = clock.getElapsedTime();
-      innerRef.current.rotation.y = time * 2;
-      innerRef.current.position.y = y + Math.sin(time * 5) * 0.2;
+      const pulse = 1 + Math.sin(time * 2 + x) * 0.03;
+      innerRef.current.scale.set(pulse, 1, pulse);
     }
   });
 
-  const isLife = type === 'life';
-  const color = isLife ? "#ef4444" : "#fbbf24";
-  const powerupMaterial = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.5, roughness: 0.2, metalness: 0.8 });
-
   return (
-    <group ref={innerRef} position={[x, y, 0]}>
-      <mesh castShadow receiveShadow material={powerupMaterial} geometry={powerupBoxGeo} />
-      {isLife ? (
-        <group position={[0, 0, 0.51]}>
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupHorizontalBarGeo} />
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupVerticalBarGeo} />
-        </group>
-      ) : (
-        <group position={[0, 0, 0.51]}>
-           <mesh position={[0, 0.2, 0]} material={powerupTextMaterial} geometry={powerupQ1Geo} />
-           <mesh position={[0.2, 0.1, 0]} material={powerupTextMaterial} geometry={powerupQ2Geo} />
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupQ3Geo} />
-           <mesh position={[0, -0.15, 0]} material={powerupTextMaterial} geometry={powerupQ4Geo} />
-        </group>
-      )}
-      {isLife ? (
-        <group position={[0, 0, -0.51]} rotation={[0, Math.PI, 0]}>
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupHorizontalBarGeo} />
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupVerticalBarGeo} />
-        </group>
-      ) : (
-        <group position={[0, 0, -0.51]} rotation={[0, Math.PI, 0]}>
-           <mesh position={[0, 0.2, 0]} material={powerupTextMaterial} geometry={powerupQ1Geo} />
-           <mesh position={[0.2, 0.1, 0]} material={powerupTextMaterial} geometry={powerupQ2Geo} />
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupQ3Geo} />
-           <mesh position={[0, -0.15, 0]} material={powerupTextMaterial} geometry={powerupQ4Geo} />
-        </group>
-      )}
+    <group ref={innerRef} position={[x, 0, 0]}>
+      <mesh position={[0, 1.3, 0]} castShadow receiveShadow material={mushroomStemMaterial} geometry={mushroomStemGeo} />
+      <mesh position={[0, 1.45, 0]} receiveShadow material={mushroomGillMaterial} geometry={mushroomGillGeo} />
+      <mesh position={[0, 1.5, 0]} castShadow receiveShadow material={mushroomCapMaterial} geometry={mushroomCapGeo} />
+      {spots.map((pos, i) => (
+        <mesh key={i} position={pos} material={mushroomSpotMaterial} geometry={mushroomSpotGeo} />
+      ))}
     </group>
   );
 });
 
-const TreeHoleObstacle = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => {
+
+export const TreeHoleObstacle = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => {
   const hitboxRef = useRef<THREE.Group>(null);
   const visualRef = useRef<THREE.Group>(null);
-  
+
   useImperativeHandle(ref, () => hitboxRef.current!);
 
   useFrame(() => {
@@ -204,19 +165,19 @@ const TreeHoleObstacle = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => 
        visualRef.current.position.x = hitboxRef.current.position.x;
     }
   });
-  
+
   return (
     <>
       <group ref={hitboxRef} position={[x, 0, 0]}>
         {/* Hitbox at the top */}
         <mesh position={[0, 4.5, 0]} visible={false} geometry={treeHoleHitboxGeo} />
       </group>
-      
+
       <group ref={visualRef} position={[x, 0, 0]}>
         {/* Canopy / Arch connecting */}
         <mesh position={[0, 5, 0]} castShadow receiveShadow material={treeHoleTrunkMaterial} geometry={treeHoleCanopyGeo} />
         <mesh position={[0, 7, 0]} castShadow receiveShadow material={treeHoleLeavesMaterial} geometry={treeHoleLeavesGeo} />
-        
+
         {/* Roots / side trunks */}
         <mesh position={[0, 1.5, 2.5]} castShadow receiveShadow material={treeHoleTrunkMaterial} geometry={treeHoleSideTrunkGeo} />
         <mesh position={[0, 1.5, -2.5]} castShadow receiveShadow material={treeHoleTrunkMaterial} geometry={treeHoleSideTrunkGeo} />
@@ -227,7 +188,7 @@ const TreeHoleObstacle = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => 
 
 export const ForestObstacles = forwardRef<ObstacleData[]>((props, ref) => {
   const { status, speed, gameId, isTransitioning } = useGameStore();
-  
+
   // The pool is a fixed state array of 8 items, pre-created with stable refs
   const [pool] = useState<ObstacleData[]>(() =>
     Array.from({ length: 8 }, (_, i) => ({
@@ -242,6 +203,8 @@ export const ForestObstacles = forwardRef<ObstacleData[]>((props, ref) => {
   const nextSpawnX = useRef(SPAWN_DISTANCE);
   const lastInitializedGameId = useRef<number | null>(null);
 
+  const randomStumpScale = (isHigh: boolean): number => (isHigh ? 1.0 + Math.random() * 0.5 : 0.6 + Math.random() * 0.4);
+
   const generateObstacleInSlot = (slot: ObstacleData, x: number): ObstacleData => {
     // Intercept egg spawning if flagged by the score system
     const store = useGameStore.getState();
@@ -251,14 +214,14 @@ export const ForestObstacles = forwardRef<ObstacleData[]>((props, ref) => {
       slot.y = 0.35;
       slot.eggRarity = store.pendingEggRarity;
       slot.powerupType = undefined;
-      
+
       // Reset the spawning flags in the store
       useGameStore.setState({ shouldSpawnEgg: false, pendingEggRarity: null });
       return slot;
     }
 
     const globalObstacle = tryGenerateGlobalObstacle();
-    
+
     if (globalObstacle) {
       slot.type = globalObstacle.type;
       slot.x = x;
@@ -279,6 +242,7 @@ export const ForestObstacles = forwardRef<ObstacleData[]>((props, ref) => {
     slot.type = type;
     slot.x = x;
     slot.y = y;
+    slot.scale = (type === 'stump-low' || type === 'stump-high') ? randomStumpScale(type === 'stump-high') : Math.random() * 1000;
     slot.powerupType = undefined;
     return slot;
   };
@@ -315,7 +279,7 @@ export const ForestObstacles = forwardRef<ObstacleData[]>((props, ref) => {
            obs.ref.current.visible = true;
          }
        });
-       
+
        if (ref && 'current' in ref) {
          (ref as React.MutableRefObject<ObstacleData[]>).current = pool.filter(obs => obs.x > DESPAWN_DISTANCE);
        }
@@ -340,7 +304,7 @@ export const ForestObstacles = forwardRef<ObstacleData[]>((props, ref) => {
     if (status !== 'playing') return;
 
     const moveDistance = useGameStore.getState().getCurrentSpeed() * delta;
-    
+
     // 1. Move active items and sync visibility/positions
     pool.forEach(obs => {
       if (obs.x > DESPAWN_DISTANCE) {
@@ -371,7 +335,7 @@ export const ForestObstacles = forwardRef<ObstacleData[]>((props, ref) => {
 
     if (shouldSpawn) {
       const score = useGameStore.getState().score;
-      const spawnFlock = score > 30000 && Math.random() < 0.7;
+      const spawnFlock = score > FREQUENCY_RAMP_SCORE && Math.random() < 0.7;
 
       if (spawnFlock) {
          const inactiveSlots = pool.filter(obs => obs.x <= DESPAWN_DISTANCE);
@@ -383,7 +347,7 @@ export const ForestObstacles = forwardRef<ObstacleData[]>((props, ref) => {
                slot.x = nextObsX + k * (2.5 + Math.random() * 2);
                slot.y = 0.8 + Math.random() * 2.4;
                slot.powerupType = undefined;
-               
+
                if (slot.ref.current) {
                  slot.ref.current.position.set(slot.x, slot.y, 0);
                  slot.ref.current.visible = true;
@@ -425,19 +389,19 @@ export const ForestObstacles = forwardRef<ObstacleData[]>((props, ref) => {
     <group>
       {pool.map(obs => {
         if (obs.type === 'stump-low') {
-          return <Stump key={obs.id} ref={obs.ref as any} x={obs.x} scale={0.8} />;
+          return <Stump key={obs.id} ref={obs.ref as any} x={obs.x} scale={obs.scale ?? 0.8} />;
         }
         if (obs.type === 'stump-high') {
-           return <Stump key={obs.id} ref={obs.ref as any} x={obs.x} scale={1.2} isHigh={true} />;
+           return <Stump key={obs.id} ref={obs.ref as any} x={obs.x} scale={obs.scale ?? 1.2} isHigh={true} />;
         }
-        if (obs.type === 'puddle') {
-           return <Puddle key={obs.id} ref={obs.ref as any} x={obs.x} />;
+        if (obs.type === 'mushroom') {
+           return <GiantMushroom key={obs.id} ref={obs.ref as any} x={obs.x} spotSeed={obs.scale ?? 0} />;
         }
         if (obs.type === 'tree-hole') {
            return <TreeHoleObstacle key={obs.id} ref={obs.ref as any} x={obs.x} />;
         }
         if (obs.type === 'bird') {
-          return <TropicalBird key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} />;
+          return <GiantBee key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} />;
         }
         if (obs.type === 'powerup') {
           return <PowerupBox key={obs.id} ref={obs.ref as any} x={obs.x} y={obs.y} type={obs.powerupType} />;

@@ -491,19 +491,19 @@ export function GospelDinoModel({ animState, previewMode = false, skinConfig }: 
         {/* Teeth */}
         <mesh position={[1.2, 1.7, 0.4]} castShadow={!isGhost}>
           <boxGeometry args={[0.12, 0.2, 0.12]} />
-          <meshStandardMaterial color="white" />
+          <meshStandardMaterial color="white" transparent={isGhost} opacity={isGhost ? 0.4 : 1.0} />
         </mesh>
         <mesh position={[1.2, 1.7, -0.4]} castShadow={!isGhost}>
           <boxGeometry args={[0.12, 0.2, 0.12]} />
-          <meshStandardMaterial color="white" />
+          <meshStandardMaterial color="white" transparent={isGhost} opacity={isGhost ? 0.4 : 1.0} />
         </mesh>
         <mesh position={[1.35, 1.7, 0.2]} castShadow={!isGhost}>
           <boxGeometry args={[0.12, 0.2, 0.12]} />
-          <meshStandardMaterial color="white" />
+          <meshStandardMaterial color="white" transparent={isGhost} opacity={isGhost ? 0.4 : 1.0} />
         </mesh>
         <mesh position={[1.35, 1.7, -0.2]} castShadow={!isGhost}>
           <boxGeometry args={[0.12, 0.2, 0.12]} />
-          <meshStandardMaterial color="white" />
+          <meshStandardMaterial color="white" transparent={isGhost} opacity={isGhost ? 0.4 : 1.0} />
         </mesh>
 
         {/* Lower Jaw */}
@@ -522,8 +522,8 @@ export function GospelDinoModel({ animState, previewMode = false, skinConfig }: 
           <primitive object={spikesMaterial} attach="material" />
         </mesh>
 
-        {/* Strong Jaw Powerup Visual */}
-        {activePowerup === "jaw" && (
+        {/* Strong Jaw / Dragon Powerup Visual */}
+        {(activePowerup === "jaw" || activePowerup === "dragon") && (
           <group position={[1.4, 2.0, 0]}>
             <mesh position={[0, 0, 0.3]} rotation={[0, 0, -Math.PI / 4]}>
               <boxGeometry args={[0.4, 0.4, 0.15]} />
@@ -545,9 +545,9 @@ export function GospelDinoModel({ animState, previewMode = false, skinConfig }: 
           <mesh position={[0, 0, 0.56]} castShadow={!isGhost}>
             <boxGeometry args={[0.30, 0.35, 0.04]} />
             <meshStandardMaterial
-              color={activePowerup === 'jaw' || activePowerup === 'super' ? '#ef4444' : '#ffd700'}
-              emissive="#ffea00"
-              emissiveIntensity={0.6}
+              color={activePowerup === 'dragon' ? '#dc2626' : (activePowerup === 'jaw' || activePowerup === 'super' ? '#ef4444' : '#ffd700')}
+              emissive={activePowerup === 'dragon' ? '#7f1d1d' : '#ffea00'}
+              emissiveIntensity={activePowerup === 'dragon' ? 2.0 : 0.6}
               transparent={isGhost}
               opacity={isGhost ? 0.4 : 1.0}
             />
@@ -571,9 +571,9 @@ export function GospelDinoModel({ animState, previewMode = false, skinConfig }: 
           <mesh position={[0, 0, -0.56]} castShadow={!isGhost}>
             <boxGeometry args={[0.30, 0.35, 0.04]} />
             <meshStandardMaterial
-              color={activePowerup === 'jaw' || activePowerup === 'super' ? '#ef4444' : '#ffd700'}
-              emissive="#ffea00"
-              emissiveIntensity={0.6}
+              color={activePowerup === 'dragon' ? '#dc2626' : (activePowerup === 'jaw' || activePowerup === 'super' ? '#ef4444' : '#ffd700')}
+              emissive={activePowerup === 'dragon' ? '#7f1d1d' : '#ffea00'}
+              emissiveIntensity={activePowerup === 'dragon' ? 2.0 : 0.6}
               transparent={isGhost}
               opacity={isGhost ? 0.4 : 1.0}
             />

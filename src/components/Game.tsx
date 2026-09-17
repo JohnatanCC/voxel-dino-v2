@@ -1,5 +1,5 @@
 import { useFrame } from '@react-three/fiber';
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, createRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { Dino } from './Dino';
 import * as THREE from 'three';
@@ -8,8 +8,10 @@ import { VFXRenderer } from './VFXRenderer';
 import { Text, OrbitControls } from '@react-three/drei';
 import { SCENARIOS } from '../scenarios';
 import { ObstacleData, DINO_HITBOX_OFFSET, OBSTACLE_HITBOX_OFFSETS } from '../scenarios/types';
-import { resolveObstacleCollision } from '../scenarios/obstacleEffects';
+import { resolveObstacleCollision, destroyObstacleWithScore } from '../scenarios/obstacleEffects';
 import { TrailingEggs } from './TrailingEggs';
+import { Fireball } from './Fireball';
+import { DRAGON_FIREBALL_INTERVAL_S, DRAGON_FIREBALL_SPEED, DRAGON_FIREBALL_LIFETIME_S } from '../config/balance';
 
 interface TransitionProps {
   scenarioKey: string;
@@ -111,23 +113,51 @@ function CameraController() {
 
 function PowerupLight() {
     const activePowerup = useGameStore(s => s.activePowerup);
-    const color = activePowerup === 'super' ? '#fde047' : 
-                  activePowerup === 'jaw' ? '#ef4444' : 
+    const color = activePowerup === 'super' ? '#fde047' :
+                  activePowerup === 'jaw' ? '#ef4444' :
                   activePowerup === 'ghost' ? '#a855f7' :
                   activePowerup === 'wings' ? '#93c5fd' :
-                  activePowerup === 'earth' ? '#d97706' : '#ffffff';
+                  activePowerup === 'earth' ? '#d97706' :
+                  activePowerup === 'dragon' ? '#dc2626' : '#ffffff';
     const intensity = activePowerup !== 'none' ? 1.5 : 0;
     
     return <pointLight position={[2, 3, 0]} color={color} intensity={intensity} distance={15} />;
 }
 
+interface FireballSlot {
+  id: number;
+  x: number;
+  y: number;
+  active: boolean;
+  life: number;
+  ref: React.RefObject<THREE.Group | null>;
+}
+
 export function Game() {
-  const { status, incrementScore, cameraMode, scenario, devMode } = useGameStore();
+  const { status, incrementScore, cameraMode, scenario, devMode, gameId } = useGameStore();
   const dinoRef = useRef<THREE.Group>(null);
   const dinoBox = useRef(new THREE.Box3());
   const obstaclesRef = useRef<ObstacleData[]>([]);
   const obstacleBox = useRef(new THREE.Box3());
+  const fireballBox = useRef(new THREE.Box3());
   const lookAtTarget = useRef(new THREE.Vector3(5, 3.5, 0));
+
+  const [fireballs] = useState<FireballSlot[]>(() =>
+    Array.from({ length: 3 }, (_, i) => ({ id: i, x: -1000, y: 0, active: false, life: 0, ref: createRef<THREE.Group>() }))
+  );
+  const fireballSpawnTimer = useRef(DRAGON_FIREBALL_INTERVAL_S);
+  const dragonWasActive = useRef(false);
+
+  // Fresh run: clear out any fireball still mid-flight from the previous attempt.
+  useEffect(() => {
+    fireballs.forEach((fb) => {
+      fb.active = false;
+      fb.x = -1000;
+      if (fb.ref.current) fb.ref.current.visible = false;
+    });
+    fireballSpawnTimer.current = DRAGON_FIREBALL_INTERVAL_S;
+    dragonWasActive.current = false;
+  }, [gameId]);
 
   // Camera settings
   useFrame((state, delta) => {
@@ -206,6 +236,57 @@ export function Game() {
         }
       }
     }
+
+    // Dragon powerup: fires a fireball forward every couple seconds, destroying
+    // whatever obstacle it touches (but never eggs/powerups — those stay collectible).
+    if (status === 'playing' && activePowerup === 'dragon' && dinoRef.current) {
+      if (!dragonWasActive.current) {
+        dragonWasActive.current = true;
+        fireballSpawnTimer.current = 0; // fire one immediately on activation
+      }
+      fireballSpawnTimer.current -= delta;
+      if (fireballSpawnTimer.current <= 0) {
+        fireballSpawnTimer.current = DRAGON_FIREBALL_INTERVAL_S;
+        const slot = fireballs.find(f => !f.active);
+        if (slot) {
+          slot.active = true;
+          slot.life = 0;
+          slot.x = dinoRef.current.position.x + 1.5;
+          slot.y = dinoRef.current.position.y + 0.8;
+        }
+      }
+    } else {
+      dragonWasActive.current = false;
+    }
+
+    for (const fb of fireballs) {
+      if (!fb.active || !fb.ref.current) continue;
+
+      fb.x += DRAGON_FIREBALL_SPEED * delta;
+      fb.life += delta;
+      fb.ref.current.position.set(fb.x, fb.y, 0);
+      fb.ref.current.visible = true;
+
+      if (fb.life > DRAGON_FIREBALL_LIFETIME_S) {
+        fb.active = false;
+        fb.ref.current.visible = false;
+        continue;
+      }
+
+      fireballBox.current.setFromObject(fb.ref.current);
+      for (let i = 0; i < obstaclesRef.current.length; i++) {
+        const obs = obstaclesRef.current[i];
+        if (!obs.ref.current || obs.type === 'egg' || obs.type === 'powerup') continue;
+
+        obstacleBox.current.setFromObject(obs.ref.current);
+        if (fireballBox.current.intersectsBox(obstacleBox.current)) {
+          destroyObstacleWithScore(obs, obs.x, obs.ref.current.position.y, '#f97316');
+          fb.active = false;
+          fb.ref.current.visible = false;
+          break;
+        }
+      }
+    }
   });
 
   return (
@@ -216,6 +297,9 @@ export function Game() {
       <PowerupLight />
       <Dino ref={dinoRef} />
       <TrailingEggs dinoRef={dinoRef} />
+      {fireballs.map((fb) => (
+        <Fireball key={fb.id} ref={fb.ref} x={fb.x} y={fb.y} />
+      ))}
       {(() => {
         const activeScenario = SCENARIOS[scenario];
         const Ground = activeScenario.GroundComponent;

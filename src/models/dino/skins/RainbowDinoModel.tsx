@@ -4,6 +4,9 @@ import * as THREE from 'three';
 import { useGameStore, SkinConfig } from '../../../store/gameStore';
 import { createVoxelTexture } from '../../../utils/texture';
 import { DinoModelProps } from '../types';
+import { Wings } from '../shared/Wings';
+import { useWingFlap } from '../shared/useWingFlap';
+import { useGhostFade } from '../shared/useGhostFade';
 
 interface RainbowDinoProps extends DinoModelProps {
   skinConfig: SkinConfig;
@@ -81,6 +84,9 @@ export function RainbowDinoModel({ animState, previewMode = false, skinConfig }:
     metalness: 0.9,
   }), []);
 
+  useGhostFade(animState, [dinoMaterial, neonMaterial, spikesMaterial, collarMaterial, coreMaterial, plateMaterial]);
+  useWingFlap(animState, wingLeftRef, wingRightRef);
+
   useFrame((state, delta) => {
     const current = animState.current;
     const p = current.activePowerup;
@@ -92,23 +98,6 @@ export function RainbowDinoModel({ animState, previewMode = false, skinConfig }:
     const isEating = current.isEating;
     const status = current.status;
     const time = state.clock.getElapsedTime();
-
-    // Immediate ghost transparency updates
-    const isGhostActive = p === 'ghost';
-    if (dinoMaterial.transparent !== isGhostActive) {
-      dinoMaterial.transparent = isGhostActive;
-      dinoMaterial.opacity = isGhostActive ? 0.4 : 1.0;
-      neonMaterial.transparent = isGhostActive;
-      neonMaterial.opacity = isGhostActive ? 0.4 : 1.0;
-      spikesMaterial.transparent = isGhostActive;
-      spikesMaterial.opacity = isGhostActive ? 0.4 : 1.0;
-      collarMaterial.transparent = isGhostActive;
-      collarMaterial.opacity = isGhostActive ? 0.4 : 1.0;
-      coreMaterial.transparent = isGhostActive;
-      coreMaterial.opacity = isGhostActive ? 0.4 : 1.0;
-      plateMaterial.transparent = isGhostActive;
-      plateMaterial.opacity = isGhostActive ? 0.4 : 1.0;
-    }
 
     // 1. Cycle neon hues + body emissive shimmer
     const neonColor = new THREE.Color().setHSL((time * 0.4) % 1, 0.95, 0.5);
@@ -336,22 +325,6 @@ export function RainbowDinoModel({ animState, previewMode = false, skinConfig }:
       }
     }
 
-    // 7. Wings flapping powerup
-    if (wingLeftRef.current && wingRightRef.current) {
-      if (p === 'wings') {
-        if (!isGrounded && current.velocity < 0) {
-          wingLeftRef.current.rotation.z = THREE.MathUtils.lerp(wingLeftRef.current.rotation.z, Math.PI / 4, 0.2);
-          wingRightRef.current.rotation.z = THREE.MathUtils.lerp(wingRightRef.current.rotation.z, -Math.PI / 4, 0.2);
-        } else if (!isGrounded && current.velocity > 0) {
-          wingLeftRef.current.rotation.z = Math.sin(time * 30) * 0.8;
-          wingRightRef.current.rotation.z = -Math.sin(time * 30) * 0.8;
-        } else {
-          wingLeftRef.current.rotation.z = 0;
-          wingRightRef.current.rotation.z = 0;
-        }
-      }
-    }
-
     // 8. Spring Eye Blinking Animation
     const blinkCycle = time % 4.0;
     let targetScaleY = 1.0;
@@ -535,19 +508,19 @@ export function RainbowDinoModel({ animState, previewMode = false, skinConfig }:
         {/* Teeth */}
         <mesh position={[1.2, 1.7, 0.4]} castShadow={!isGhost}>
           <boxGeometry args={[0.12, 0.2, 0.12]} />
-          <meshStandardMaterial color="white" />
+          <meshStandardMaterial color="white" transparent={isGhost} opacity={isGhost ? 0.4 : 1.0} />
         </mesh>
         <mesh position={[1.2, 1.7, -0.4]} castShadow={!isGhost}>
           <boxGeometry args={[0.12, 0.2, 0.12]} />
-          <meshStandardMaterial color="white" />
+          <meshStandardMaterial color="white" transparent={isGhost} opacity={isGhost ? 0.4 : 1.0} />
         </mesh>
         <mesh position={[1.35, 1.7, 0.2]} castShadow={!isGhost}>
           <boxGeometry args={[0.12, 0.2, 0.12]} />
-          <meshStandardMaterial color="white" />
+          <meshStandardMaterial color="white" transparent={isGhost} opacity={isGhost ? 0.4 : 1.0} />
         </mesh>
         <mesh position={[1.35, 1.7, -0.2]} castShadow={!isGhost}>
           <boxGeometry args={[0.12, 0.2, 0.12]} />
-          <meshStandardMaterial color="white" />
+          <meshStandardMaterial color="white" transparent={isGhost} opacity={isGhost ? 0.4 : 1.0} />
         </mesh>
 
         {/* Lower Jaw */}
@@ -566,8 +539,8 @@ export function RainbowDinoModel({ animState, previewMode = false, skinConfig }:
           <primitive object={spikesMaterial} attach="material" />
         </mesh>
 
-        {/* Strong Jaw Powerup Visual */}
-        {activePowerup === "jaw" && (
+        {/* Strong Jaw / Dragon Powerup Visual */}
+        {(activePowerup === "jaw" || activePowerup === "dragon") && (
           <group position={[1.4, 2.0, 0]}>
             <mesh position={[0, 0, 0.3]} rotation={[0, 0, -Math.PI / 4]}>
               <boxGeometry args={[0.4, 0.4, 0.15]} />
@@ -589,9 +562,9 @@ export function RainbowDinoModel({ animState, previewMode = false, skinConfig }:
           <mesh position={[0, 0, 0.56]} castShadow={!isGhost}>
             <boxGeometry args={[0.30, 0.35, 0.04]} />
             <meshStandardMaterial
-              color={activePowerup === 'wings' ? '#c084fc' : (activePowerup === 'jaw' || activePowerup === 'super' ? '#ef4444' : '#ffffff')}
-              emissive={activePowerup === 'wings' ? '#a855f7' : '#000000'}
-              emissiveIntensity={activePowerup === 'wings' ? 2.0 : 0}
+              color={activePowerup === 'wings' ? '#c084fc' : activePowerup === 'dragon' ? '#dc2626' : (activePowerup === 'jaw' || activePowerup === 'super' ? '#ef4444' : '#ffffff')}
+              emissive={activePowerup === 'wings' ? '#a855f7' : activePowerup === 'dragon' ? '#7f1d1d' : '#000000'}
+              emissiveIntensity={activePowerup === 'wings' || activePowerup === 'dragon' ? 2.0 : 0}
               transparent={isGhost}
               opacity={isGhost ? 0.4 : 1.0}
             />
@@ -615,9 +588,9 @@ export function RainbowDinoModel({ animState, previewMode = false, skinConfig }:
           <mesh position={[0, 0, -0.56]} castShadow={!isGhost}>
             <boxGeometry args={[0.30, 0.35, 0.04]} />
             <meshStandardMaterial
-              color={activePowerup === 'wings' ? '#c084fc' : (activePowerup === 'jaw' || activePowerup === 'super' ? '#ef4444' : '#ffffff')}
-              emissive={activePowerup === 'wings' ? '#a855f7' : '#000000'}
-              emissiveIntensity={activePowerup === 'wings' ? 2.0 : 0}
+              color={activePowerup === 'wings' ? '#c084fc' : activePowerup === 'dragon' ? '#dc2626' : (activePowerup === 'jaw' || activePowerup === 'super' ? '#ef4444' : '#ffffff')}
+              emissive={activePowerup === 'wings' ? '#a855f7' : activePowerup === 'dragon' ? '#7f1d1d' : '#000000'}
+              emissiveIntensity={activePowerup === 'wings' || activePowerup === 'dragon' ? 2.0 : 0}
               transparent={isGhost}
               opacity={isGhost ? 0.4 : 1.0}
             />

@@ -4,6 +4,9 @@ import * as THREE from 'three';
 import { useGameStore, SkinConfig } from '../../../store/gameStore';
 import { spawnParticles } from '../../../components/VFXRenderer';
 import { DinoModelProps } from '../types';
+import { Wings } from '../shared/Wings';
+import { useWingFlap } from '../shared/useWingFlap';
+import { useGhostFade } from '../shared/useGhostFade';
 
 interface SharkDinoProps extends DinoModelProps {
   skinConfig: SkinConfig;
@@ -82,8 +85,8 @@ export function SharkDinoModel({ animState, previewMode = false, skinConfig }: S
   const headRef = useRef<THREE.Group>(null);
   const leftArmRef = useRef<THREE.Mesh>(null);
   const rightArmRef = useRef<THREE.Mesh>(null);
-  const wingLeftRef = useRef<THREE.Mesh>(null);
-  const wingRightRef = useRef<THREE.Mesh>(null);
+  const wingLeftRef = useRef<THREE.Group>(null);
+  const wingRightRef = useRef<THREE.Group>(null);
   const lowerJawRef = useRef<THREE.Mesh>(null);
   const parentGroupRef = useRef<THREE.Group>(null);
 
@@ -146,6 +149,9 @@ export function SharkDinoModel({ animState, previewMode = false, skinConfig }: S
     color: '#1a202c',
     roughness: 0.1,
   }), []);
+
+  useGhostFade(animState, [dinoMaterial, costumeMaterial, underbellyMaterial, spikesMaterial, spotsMaterial, collarMaterial, teethMaterial]);
+  useWingFlap(animState, wingLeftRef, wingRightRef);
 
   useFrame((state, delta) => {
     const current = animState.current;
@@ -223,6 +229,13 @@ export function SharkDinoModel({ animState, previewMode = false, skinConfig }: S
       teethMaterial.emissiveIntensity = 2.0;
       teethMaterial.metalness = 0.8;
       teethMaterial.roughness = 0.2;
+    } else if (p === 'dragon') {
+      teethMaterial.emissive.set('#7f1d1d');
+      teethMaterial.emissiveIntensity = 2.0;
+      teethMaterial.metalness = 0.3;
+      hoodEyeMaterial.color.set('#dc2626');
+      hoodEyeMaterial.emissive.set('#7f1d1d');
+      hoodEyeMaterial.emissiveIntensity = 3.0;
     } else if (p === 'earth') {
       dinoMaterial.color.set('#44403c');
       costumeMaterial.color.set('#78716c');
@@ -403,28 +416,12 @@ export function SharkDinoModel({ animState, previewMode = false, skinConfig }: S
 
     // 5. Eating jaw movement
     if (lowerJawRef.current) {
-      if (p === 'jaw') {
+      if (p === 'jaw' || p === 'dragon') {
         lowerJawRef.current.rotation.z = -0.4;
       } else if (isEating) {
         lowerJawRef.current.rotation.z = -Math.abs(Math.sin(time * 15)) * 0.45;
       } else {
         lowerJawRef.current.rotation.z = 0;
-      }
-    }
-
-    // 6. Wing flapping visual
-    if (wingLeftRef.current && wingRightRef.current) {
-      if (p === 'wings') {
-        if (!isGrounded && current.velocity < 0) {
-          wingLeftRef.current.rotation.z = THREE.MathUtils.lerp(wingLeftRef.current.rotation.z, Math.PI / 4, 0.2);
-          wingRightRef.current.rotation.z = THREE.MathUtils.lerp(wingRightRef.current.rotation.z, -Math.PI / 4, 0.2);
-        } else if (!isGrounded && current.velocity > 0) {
-          wingLeftRef.current.rotation.z = Math.sin(time * 30) * 0.8;
-          wingRightRef.current.rotation.z = -Math.sin(time * 30) * 0.8;
-        } else {
-          wingLeftRef.current.rotation.z = Math.sin(time * 2) * 0.1 - 0.2;
-          wingRightRef.current.rotation.z = -Math.sin(time * 2) * 0.1 + 0.2;
-        }
       }
     }
 
@@ -755,7 +752,7 @@ export function SharkDinoModel({ animState, previewMode = false, skinConfig }: S
           <mesh position={[0, 0, 0.50]} castShadow={!isGhost}>
             <boxGeometry args={[0.30, 0.35, 0.04]} />
             <meshBasicMaterial
-              color={activePowerup === 'jaw' || activePowerup === 'super' ? '#ef4444' : '#ffffff'}
+              color={activePowerup === 'dragon' ? '#dc2626' : (activePowerup === 'jaw' || activePowerup === 'super' ? '#ef4444' : '#ffffff')}
               transparent={isGhost}
               opacity={isGhost ? 0.4 : 1.0}
             />
@@ -779,7 +776,7 @@ export function SharkDinoModel({ animState, previewMode = false, skinConfig }: S
           <mesh position={[0, 0, -0.50]} castShadow={!isGhost}>
             <boxGeometry args={[0.30, 0.35, 0.04]} />
             <meshBasicMaterial
-              color={activePowerup === 'jaw' || activePowerup === 'super' ? '#ef4444' : '#ffffff'}
+              color={activePowerup === 'dragon' ? '#dc2626' : (activePowerup === 'jaw' || activePowerup === 'super' ? '#ef4444' : '#ffffff')}
               transparent={isGhost}
               opacity={isGhost ? 0.4 : 1.0}
             />
@@ -797,16 +794,7 @@ export function SharkDinoModel({ animState, previewMode = false, skinConfig }: S
 
       {/* Wings Powerup Visual */}
       {activePowerup === "wings" && (
-        <group position={[-0.2, 1.5, 0]}>
-          <mesh ref={wingLeftRef} position={[0, 0, 0.6]} rotation={[0, Math.PI / 4, 0]} castShadow>
-            <boxGeometry args={[0.6, 0.1, 0.4]} />
-            <meshStandardMaterial color="white" />
-          </mesh>
-          <mesh ref={wingRightRef} position={[0, 0, -0.6]} rotation={[0, -Math.PI / 4, 0]} castShadow>
-            <boxGeometry args={[0.6, 0.1, 0.4]} />
-            <meshStandardMaterial color="white" />
-          </mesh>
-        </group>
+        <Wings wingLeftRef={wingLeftRef} wingRightRef={wingRightRef} position={[-0.2, 1.5, 0]} accentColor="#38bdf8" />
       )}
 
       {/* Arms (Dark blue hands coming out of slate-blue sleeves) */}
