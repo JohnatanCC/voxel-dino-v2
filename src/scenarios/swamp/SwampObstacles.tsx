@@ -2,10 +2,11 @@ import { useFrame } from '@react-three/fiber';
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, createRef } from 'react';
 import * as THREE from 'three';
 import { useGameStore } from '../../store/gameStore';
-import { ObstacleData, ObstacleType, PowerupType } from '../types';
+import { ObstacleData, ObstacleType } from '../types';
 import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition, isBirdEligible } from '../helpers';
 import { VoxelEgg } from '../../components/VoxelEgg';
-import { getAllowedObstacles } from '../../config/balance';
+import { getAllowedObstacles, FREQUENCY_RAMP_SCORE } from '../../config/balance';
+import { PowerupBox } from '../shared/PowerupBox';
 
 // Reusable static materials
 const deadWoodMaterial = new THREE.MeshStandardMaterial({ color: '#57534e', roughness: 0.95 }); // Lighter grey/brown for visibility
@@ -13,12 +14,12 @@ const crocMaterial = new THREE.MeshStandardMaterial({ color: '#15803d', roughnes
 const crocSpikeMaterial = new THREE.MeshStandardMaterial({ color: '#064e3b', roughness: 0.9 });
 const crowMaterial = new THREE.MeshStandardMaterial({ color: '#171717', roughness: 0.5 });
 const crowBeakMaterial = new THREE.MeshStandardMaterial({ color: '#44403c', roughness: 0.8 });
-const waterMaterial = new THREE.MeshStandardMaterial({ color: '#0f766e', roughness: 0.1, transparent: true, opacity: 0.8 });
 const mossMaterial = new THREE.MeshStandardMaterial({ color: '#22c55e', roughness: 0.9 }); // Brighter moss
 const mushroomMaterial = new THREE.MeshStandardMaterial({ color: '#a7f3d0', emissive: '#34d399', emissiveIntensity: 0.8 });
 const crocEyeMaterial = new THREE.MeshStandardMaterial({ color: '#fef08a', emissive: '#facc15', emissiveIntensity: 1.0 });
 const blackEyeMaterial = new THREE.MeshBasicMaterial({ color: 'black' });
-const powerupTextMaterial = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+const leechPatchMaterial = new THREE.MeshStandardMaterial({ color: '#3f0d12', roughness: 0.9, transparent: true, opacity: 0.88 });
+const leechBlobMaterial = new THREE.MeshStandardMaterial({ color: '#160406', roughness: 0.6 });
 
 // Reusable static geometries
 const cylinderTrunkHighGeo = new THREE.CylinderGeometry(0.3, 0.5, 3.0, 6);
@@ -47,18 +48,10 @@ const crocBottomJawGeo = new THREE.BoxGeometry(1.0, 0.15, 0.6);
 const crocEyeGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
 const crocPupilGeo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
 
-const puddleCylinderGeo = new THREE.CylinderGeometry(3, 3, 0.1, 16);
-const puddleHitboxGeo = new THREE.BoxGeometry(4, 3, 4);
+const leechPatchGeo = new THREE.CylinderGeometry(1.0, 1.1, 0.06, 12);
+const leechBlobGeo = new THREE.BoxGeometry(0.22, 0.32, 0.22);
 
-const powerupBoxGeo = new THREE.BoxGeometry(1, 1, 1);
-const powerupHorizontalBarGeo = new THREE.BoxGeometry(0.5, 0.15, 0.05);
-const powerupVerticalBarGeo = new THREE.BoxGeometry(0.15, 0.5, 0.05);
-const powerupQ1Geo = new THREE.BoxGeometry(0.4, 0.1, 0.05);
-const powerupQ2Geo = new THREE.BoxGeometry(0.1, 0.2, 0.05);
-const powerupQ3Geo = new THREE.BoxGeometry(0.3, 0.1, 0.05);
-const powerupQ4Geo = new THREE.BoxGeometry(0.1, 0.1, 0.05);
-
-const DeadTree = forwardRef<THREE.Group, { x: number; scale: number; isHigh?: boolean }>(
+export const DeadTree = forwardRef<THREE.Group, { x: number; scale: number; isHigh?: boolean }>(
   ({ x, scale, isHigh = false }, ref) => {
     const height = isHigh ? 3 : 1.5;
     const geometry = isHigh ? cylinderTrunkHighGeo : cylinderTrunkLowGeo;
@@ -89,7 +82,7 @@ const DeadTree = forwardRef<THREE.Group, { x: number; scale: number; isHigh?: bo
   }
 );
 
-const Crow = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
+export const Crow = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
   const innerRef = useRef<THREE.Group>(null);
   
   useImperativeHandle(ref, () => innerRef.current!);
@@ -127,7 +120,7 @@ const Crow = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) =
   );
 });
 
-const CrocodileObstacle = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => {
+export const CrocodileObstacle = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => {
   const innerRef = useRef<THREE.Group>(null);
   const jawRef = useRef<THREE.Group>(null);
   const tailRef = useRef<THREE.Group>(null);
@@ -220,80 +213,29 @@ const CrocodileObstacle = forwardRef<THREE.Group, { x: number }>(({ x }, ref) =>
   );
 });
 
-const PuddleObstacle = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => {
-  const hitboxRef = useRef<THREE.Group>(null);
-  const visualRef = useRef<THREE.Group>(null);
-  
-  useImperativeHandle(ref, () => hitboxRef.current!);
-
-  useFrame(() => {
-    if (hitboxRef.current && visualRef.current) {
-       visualRef.current.position.x = hitboxRef.current.position.x;
-    }
-  });
-  
-  return (
-    <>
-      <group ref={hitboxRef} position={[x, 0, 0]}>
-         <mesh position={[0, 1.5, 0]} visible={false} geometry={puddleHitboxGeo} />
-      </group>
-      
-      <group ref={visualRef} position={[x, -0.49, 0]}>
-         <mesh receiveShadow material={waterMaterial} geometry={puddleCylinderGeo} />
-      </group>
-    </>
-  );
-});
-
-const PowerupBox = forwardRef<THREE.Group, { x: number; y: number; type?: PowerupType }>(({ x, y, type }, ref) => {
+export const LeechObstacle = forwardRef<THREE.Group, { x: number }>(({ x }, ref) => {
   const innerRef = useRef<THREE.Group>(null);
-  
+
   useImperativeHandle(ref, () => innerRef.current!);
 
   useFrame(({ clock }) => {
     if (innerRef.current) {
       const time = clock.getElapsedTime();
-      innerRef.current.rotation.y = time * 2;
-      innerRef.current.position.y = y + Math.sin(time * 5) * 0.2;
+      const pulse = 1 + Math.sin(time * 6 + x) * 0.08;
+      innerRef.current.scale.set(pulse, 1, pulse);
     }
   });
 
-  const isLife = type === 'life';
-  const color = isLife ? "#ef4444" : "#fbbf24";
-  const powerupMaterial = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.5, roughness: 0.2, metalness: 0.8 });
-
   return (
-    <group ref={innerRef} position={[x, y, 0]}>
-      <mesh castShadow receiveShadow material={powerupMaterial} geometry={powerupBoxGeo} />
-      {isLife ? (
-        <group position={[0, 0, 0.51]}>
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupHorizontalBarGeo} />
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupVerticalBarGeo} />
-        </group>
-      ) : (
-        <group position={[0, 0, 0.51]}>
-           <mesh position={[0, 0.2, 0]} material={powerupTextMaterial} geometry={powerupQ1Geo} />
-           <mesh position={[0.2, 0.1, 0]} material={powerupTextMaterial} geometry={powerupQ2Geo} />
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupQ3Geo} />
-           <mesh position={[0, -0.15, 0]} material={powerupTextMaterial} geometry={powerupQ4Geo} />
-        </group>
-      )}
-      {isLife ? (
-        <group position={[0, 0, -0.51]} rotation={[0, Math.PI, 0]}>
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupHorizontalBarGeo} />
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupVerticalBarGeo} />
-        </group>
-      ) : (
-        <group position={[0, 0, -0.51]} rotation={[0, Math.PI, 0]}>
-           <mesh position={[0, 0.2, 0]} material={powerupTextMaterial} geometry={powerupQ1Geo} />
-           <mesh position={[0.2, 0.1, 0]} material={powerupTextMaterial} geometry={powerupQ2Geo} />
-           <mesh position={[0, 0, 0]} material={powerupTextMaterial} geometry={powerupQ3Geo} />
-           <mesh position={[0, -0.15, 0]} material={powerupTextMaterial} geometry={powerupQ4Geo} />
-        </group>
-      )}
+    <group ref={innerRef} position={[x, 0, 0]}>
+      <mesh position={[0, 0.03, 0]} receiveShadow material={leechPatchMaterial} geometry={leechPatchGeo} />
+      <mesh position={[0.32, 0.4, 0.22]} material={leechBlobMaterial} geometry={leechBlobGeo} />
+      <mesh position={[-0.28, 0.4, -0.18]} material={leechBlobMaterial} geometry={leechBlobGeo} />
+      <mesh position={[0.08, 0.4, -0.38]} material={leechBlobMaterial} geometry={leechBlobGeo} />
     </group>
   );
 });
+
 
 export const SwampObstacles = forwardRef<ObstacleData[]>((props, ref) => {
   const { status, speed, gameId, isTransitioning } = useGameStore();
@@ -443,7 +385,7 @@ export const SwampObstacles = forwardRef<ObstacleData[]>((props, ref) => {
 
     if (shouldSpawn) {
       const score = useGameStore.getState().score;
-      const spawnFlock = score > 30000 && Math.random() < 0.7;
+      const spawnFlock = score > FREQUENCY_RAMP_SCORE && Math.random() < 0.7;
 
       if (spawnFlock) {
          const inactiveSlots = pool.filter(obs => obs.x <= DESPAWN_DISTANCE);
@@ -502,8 +444,8 @@ export const SwampObstacles = forwardRef<ObstacleData[]>((props, ref) => {
         if (obs.type === 'stump-high') {
            return <DeadTree key={obs.id} ref={obs.ref as any} x={obs.x} scale={1.2} isHigh={true} />;
         }
-        if (obs.type === 'puddle') {
-           return <PuddleObstacle key={obs.id} ref={obs.ref as any} x={obs.x} />;
+        if (obs.type === 'leech') {
+           return <LeechObstacle key={obs.id} ref={obs.ref as any} x={obs.x} />;
         }
         if (obs.type === 'croc') {
            return <CrocodileObstacle key={obs.id} ref={obs.ref as any} x={obs.x} />;

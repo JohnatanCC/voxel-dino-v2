@@ -5,6 +5,9 @@ import { useGameStore, SkinConfig } from '../../../store/gameStore';
 import { createVoxelTexture } from '../../../utils/texture';
 import { DinoModelProps } from '../types';
 import { spawnParticles } from '../../../components/VFXRenderer';
+import { Wings } from '../shared/Wings';
+import { useWingFlap } from '../shared/useWingFlap';
+import { useGhostFade } from '../shared/useGhostFade';
 
 interface KitsuneDinoProps extends DinoModelProps {
   skinConfig: SkinConfig;
@@ -16,8 +19,8 @@ export function KitsuneDinoModel({ animState, previewMode = false, skinConfig }:
   const headRef = useRef<THREE.Group>(null);
   const leftArmRef = useRef<THREE.Mesh>(null);
   const rightArmRef = useRef<THREE.Mesh>(null);
-  const wingLeftRef = useRef<THREE.Mesh>(null);
-  const wingRightRef = useRef<THREE.Mesh>(null);
+  const wingLeftRef = useRef<THREE.Group>(null);
+  const wingRightRef = useRef<THREE.Group>(null);
   const lowerJawRef = useRef<THREE.Mesh>(null);
   const parentGroupRef = useRef<THREE.Group>(null);
 
@@ -72,6 +75,9 @@ export function KitsuneDinoModel({ animState, previewMode = false, skinConfig }:
     map: collarTexture,
     roughness: 0.9,
   }), [collarTexture]);
+
+  useGhostFade(animState, [dinoMaterial, spikesMaterial, collarMaterial]);
+  useWingFlap(animState, wingLeftRef, wingRightRef);
 
   useFrame((state, delta) => {
     const current = animState.current;
@@ -357,21 +363,6 @@ export function KitsuneDinoModel({ animState, previewMode = false, skinConfig }:
         }
       }
 
-      // 9. Wings flapping powerup
-      if (wingLeftRef.current && wingRightRef.current) {
-        if (p === 'wings') {
-          if (!isGrounded && current.velocity < 0) {
-            wingLeftRef.current.rotation.z = THREE.MathUtils.lerp(wingLeftRef.current.rotation.z, Math.PI / 4, 0.2);
-            wingRightRef.current.rotation.z = THREE.MathUtils.lerp(wingRightRef.current.rotation.z, -Math.PI / 4, 0.2);
-          } else if (!isGrounded && current.velocity > 0) {
-            wingLeftRef.current.rotation.z = Math.sin(time * 30) * 0.8;
-            wingRightRef.current.rotation.z = -Math.sin(time * 30) * 0.8;
-          } else {
-            wingLeftRef.current.rotation.z = 0;
-            wingRightRef.current.rotation.z = 0;
-          }
-        }
-      }
     }
 
     // 10. Kitsunebi (fox-fire) orbiting
@@ -592,59 +583,62 @@ export function KitsuneDinoModel({ animState, previewMode = false, skinConfig }:
           <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2.0} />
         </mesh>
 
-        {/* Strong Jaw Powerup Visual */}
-        {activePowerup === "jaw" && (
+        {/* Strong Jaw / Dragon Powerup Visual */}
+        {(activePowerup === "jaw" || activePowerup === "dragon") && (
           <group position={[1.4, 2.0, 0]}>
             <mesh position={[0, 0, 0.3]} rotation={[0, 0, -Math.PI / 4]}>
               <boxGeometry args={[0.4, 0.4, 0.15]} />
-              <meshStandardMaterial color="white" />
+              <meshStandardMaterial color="white" transparent={isGhost} opacity={isGhost ? 0.4 : 1.0} />
             </mesh>
             <mesh position={[0, 0, -0.3]} rotation={[0, 0, -Math.PI / 4]}>
               <boxGeometry args={[0.4, 0.4, 0.15]} />
-              <meshStandardMaterial color="white" />
+              <meshStandardMaterial color="white" transparent={isGhost} opacity={isGhost ? 0.4 : 1.0} />
             </mesh>
           </group>
         )}
 
-        {/* Eyes (Kitsune Eyeliner + Cyan Glowing Pupil with Blink Group) */}
+        {/* Eyes (Kitsune Eyeliner + Glowing Pupil with Blink Group) */}
         <group ref={leftEyeGroupRef} position={[0.55, 2.4, 0]}>
           {/* Black eyeliner contour */}
           <mesh position={[0, 0, 0.55]}>
             <boxGeometry args={[0.35, 0.35, 0.02]} />
-            <meshStandardMaterial color="#000000" roughness={0.8} />
+            <meshStandardMaterial color="#000000" roughness={0.8} transparent={isGhost} opacity={isGhost ? 0.4 : 1.0} />
           </mesh>
-          {/* Cyan glowing eye */}
+          {/* Glowing eye — cyan normally, fire-red for the dragon powerup */}
           <mesh position={[0.05, 0, 0.55]}>
             <boxGeometry args={[0.2, 0.25, 0.05]} />
-            <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2.5} />
+            <meshStandardMaterial
+              color={activePowerup === 'dragon' ? '#dc2626' : '#00ffff'}
+              emissive={activePowerup === 'dragon' ? '#7f1d1d' : '#00ffff'}
+              emissiveIntensity={2.5}
+              transparent={isGhost}
+              opacity={isGhost ? 0.4 : 1.0}
+            />
           </mesh>
         </group>
         <group ref={rightEyeGroupRef} position={[0.55, 2.4, 0]}>
           {/* Black eyeliner contour */}
           <mesh position={[0, 0, -0.55]}>
             <boxGeometry args={[0.35, 0.35, 0.02]} />
-            <meshStandardMaterial color="#000000" roughness={0.8} />
+            <meshStandardMaterial color="#000000" roughness={0.8} transparent={isGhost} opacity={isGhost ? 0.4 : 1.0} />
           </mesh>
-          {/* Cyan glowing eye */}
+          {/* Glowing eye — cyan normally, fire-red for the dragon powerup */}
           <mesh position={[0.05, 0, -0.55]}>
             <boxGeometry args={[0.2, 0.25, 0.05]} />
-            <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2.5} />
+            <meshStandardMaterial
+              color={activePowerup === 'dragon' ? '#dc2626' : '#00ffff'}
+              emissive={activePowerup === 'dragon' ? '#7f1d1d' : '#00ffff'}
+              emissiveIntensity={2.5}
+              transparent={isGhost}
+              opacity={isGhost ? 0.4 : 1.0}
+            />
           </mesh>
         </group>
       </group>
 
-      {/* Wings Powerup Visual - Custom Celestial Wings for Kitsune */}
+      {/* Wings Powerup Visual */}
       {activePowerup === "wings" && (
-        <group position={[-0.2, 1.5, 0]}>
-          <mesh ref={wingLeftRef} position={[0, 0, 0.6]} rotation={[0, Math.PI / 4, 0]} castShadow>
-            <boxGeometry args={[0.6, 0.1, 0.4]} />
-            <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2.5} />
-          </mesh>
-          <mesh ref={wingRightRef} position={[0, 0, -0.6]} rotation={[0, -Math.PI / 4, 0]} castShadow>
-            <boxGeometry args={[0.6, 0.1, 0.4]} />
-            <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2.5} />
-          </mesh>
-        </group>
+        <Wings wingLeftRef={wingLeftRef} wingRightRef={wingRightRef} position={[-0.2, 1.5, 0]} accentColor="#00ffff" />
       )}
 
       {/* Kitsunebi (Fox-fire) Orbs */}

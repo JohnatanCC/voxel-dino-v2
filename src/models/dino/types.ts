@@ -7,7 +7,7 @@ export interface DinoAnimationState {
   isCrouching: boolean;
   isUnderground: boolean;
   isEating: boolean;
-  activePowerup: 'none' | 'wings' | 'super' | 'ghost' | 'jaw' | 'earth';
+  activePowerup: 'none' | 'wings' | 'super' | 'ghost' | 'jaw' | 'earth' | 'dragon';
   status: GameStatus;
   speed: number;
   isGhost: boolean;

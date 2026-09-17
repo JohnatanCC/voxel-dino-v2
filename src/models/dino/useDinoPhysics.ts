@@ -12,6 +12,8 @@ import {
   JUMP_BUFFER_MS,
   MIN_JUMP_HOLD_MS,
   MIN_JUMP_VELOCITY_RATIO,
+  WINGS_GLIDE_MAX_FALL_SPEED,
+  EARTH_GROUNDED_DECAY_PER_SECOND,
 } from '../../config/balance';
 
 const DINO_X = 2;
@@ -91,10 +93,8 @@ export function useDinoPhysics(previewMode = false) {
   // Shared by an immediate ground-press jump and a buffered jump fired on landing.
   const jump = (): number => {
     const state = useGameStore.getState();
-    const isHeavy = performance.now() < state.heavyJumpUntil;
     const isWeak = performance.now() < state.weakJumpUntil;
     let v = JUMP_VELOCITY;
-    if (isHeavy) v *= 0.7;
     if (isWeak) v *= 0.5;
 
     isGrounded.current = false;
@@ -120,10 +120,8 @@ export function useDinoPhysics(previewMode = false) {
           velocity.current = jump();
         } else if (state.activePowerup === "wings" && jumpCount.current === 1) {
           // Double jump
-          const isHeavy = performance.now() < state.heavyJumpUntil;
           const isWeak = performance.now() < state.weakJumpUntil;
           let v = JUMP_VELOCITY;
-          if (isHeavy) v *= 0.7;
           if (isWeak) v *= 0.5;
           velocity.current = v * 0.8;
           jumpCount.current = 2;
@@ -224,10 +222,17 @@ export function useDinoPhysics(previewMode = false) {
       }
     }
 
+    // Earth: burrowing is a real risk/reward now — staying grounded (not burrowed) drains
+    // the powerup's remaining time faster than just letting it tick down normally.
+    if (currentPowerup === "earth" && !isUnderground.current) {
+      useGameStore.setState((state) => ({
+        powerupEndTime: state.powerupEndTime - EARTH_GROUNDED_DECAY_PER_SECOND * delta,
+      }));
+    }
+
     // Physics
     if (innerRef.current) {
-      const isHeavy = performance.now() < storeState.heavyJumpUntil;
-      let currentGravity = isHeavy ? GRAVITY * 1.5 : GRAVITY;
+      let currentGravity = GRAVITY;
       if (currentPowerup === "wings" && velocity.current < 0) {
         currentGravity *= 0.5; // Glide
       }
@@ -238,6 +243,9 @@ export function useDinoPhysics(previewMode = false) {
         (isCrouching.current && !isGrounded.current
           ? FAST_FALL_MULTIPLIER
           : 1);
+      if (currentPowerup === "wings" && newVel < WINGS_GLIDE_MAX_FALL_SPEED) {
+        newVel = WINGS_GLIDE_MAX_FALL_SPEED; // hard floor so it reads as a real slow-fall, not just "a bit less gravity"
+      }
       let newY = logicalY.current + newVel * delta;
 
       if (newY <= 0) {

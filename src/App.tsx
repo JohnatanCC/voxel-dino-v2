@@ -5,6 +5,8 @@ import { Game } from './components/Game';
 import { UI } from './components/UI';
 import { EnvironmentManager } from './components/EnvironmentManager';
 import { SCENARIOS } from './scenarios';
+import { TestRoom } from './components/testroom/TestRoom';
+import { TestRoomUI } from './components/testroom/TestRoomUI';
 
 function getFogValues(scenario: GameScenario, isSandstorm: boolean, density: FogDensity) {
   const config = SCENARIOS[scenario];
@@ -36,6 +38,7 @@ function getFogValues(scenario: GameScenario, isSandstorm: boolean, density: Fog
 
 export default function App() {
   const status = useGameStore((state) => state.status);
+  const mode = useGameStore((state) => state.mode);
   const activePowerup = useGameStore((state) => state.activePowerup);
   const isSandstorm = useGameStore((state) => state.isSandstorm);
   const scenario = useGameStore((state) => state.scenario);
@@ -65,28 +68,29 @@ export default function App() {
   }, [status]);
 
   const canvasClassName = "absolute inset-0 w-full h-full z-0 transition-all duration-300";
+  const isTestRoom = mode === 'testroom';
 
   return (
     <div className="w-full h-screen bg-[#1e293b] text-game-text font-sans overflow-hidden relative select-none">
-      <UI />
-      
+      {isTestRoom ? <TestRoomUI /> : <UI />}
+
       <div className={canvasClassName}>
-        <Canvas 
+        <Canvas
           key={graphicsQuality}
-          shadows={graphicsQuality !== 'low'} 
-          dpr={graphicsQuality === 'low' ? 1 : graphicsQuality === 'medium' ? 1.5 : 2} 
-          camera={{ position: [6, 4.5, 22], fov: 35 }} 
+          shadows={graphicsQuality !== 'low'}
+          dpr={graphicsQuality === 'low' ? 1 : graphicsQuality === 'medium' ? 1.5 : 2}
+          camera={{ position: [6, 4.5, 22], fov: 35 }}
           className="w-full h-full relative z-0"
         >
           <color attach="background" args={[bgColor]} />
           <fog attach="fog" args={[bgColor, fogNear, fogFar]} />
-          
+
           <EnvironmentManager />
-          
+
           {/* Soft fill light */}
           <directionalLight position={[-10, 5, -10]} intensity={0.3} color="#93c5fd" />
           <Suspense fallback={null}>
-            <Game />
+            {isTestRoom ? <TestRoom /> : <Game />}
           </Suspense>
         </Canvas>
       </div>

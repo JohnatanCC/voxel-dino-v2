@@ -13,10 +13,15 @@ import {
   BIOME_TRANSITION_INVINCIBILITY_MS,
   EGG_COIN_VALUES,
   rollEggRarity,
+  POWERUP_SPAWN_COOLDOWN_MS,
 } from '../config/balance';
 
 export type FogDensity = 'off' | 'minimum' | 'low' | 'medium' | 'high';
 export type GameStatus = 'menu' | 'playing' | 'gameover' | 'paused';
+// Top-level routing switch, independent of GameStatus: which component tree App.tsx mounts.
+// The Test Room reuses status:'playing' (so the existing Ground components scroll for free)
+// while mode keeps App.tsx pointed at <TestRoom/> instead of <Game/>.
+export type GameMode = 'endless' | 'testroom';
 export type CameraMode = '2D' | '2.5D';
 export type GameScenario = 'desert' | 'forest' | 'swamp' | 'snow';
 export type GraphicsQuality = 'low' | 'medium' | 'high';
@@ -65,6 +70,7 @@ export const SKINS: SkinConfig[] = [
 
 interface GameState {
   status: GameStatus;
+  mode: GameMode;
   gameId: number;
   score: number;
   highScore: number;
@@ -76,8 +82,9 @@ interface GameState {
   dinoColor: string;
   devMode: boolean;
   gameTime: number;
-  activePowerup: 'none' | 'wings' | 'super' | 'ghost' | 'jaw' | 'earth';
+  activePowerup: 'none' | 'wings' | 'super' | 'ghost' | 'jaw' | 'earth' | 'dragon';
   powerupEndTime: number;
+  powerupCooldownUntil: number; // no new powerup spawns until this passes (set on collection)
   cinematicPowerup: { name: string; desc: string; type: string } | null;
   isSandstorm: boolean;
   cameraShake: number;
@@ -87,18 +94,21 @@ interface GameState {
   pendingScenario: GameScenario | null;
   coldTimer: number; // For snow scenario
   weakJumpUntil: number;
-  slowUntil: number;
   slowmoUntil: number;
-  setSlowUntil: (time: number) => void; // For snow scenario snowman obstacle
-  mummySlowUntil: number;
+  reducedVisibilityUntil: number; // temporary fog from the forest mushroom
   originalFogDensity: FogDensity | null;
-  setMummySlowUntil: (time: number) => void;
+  setReducedVisibilityUntil: (time: number) => void;
   setOriginalFogDensity: (density: FogDensity | null) => void;
   eatingUntil: number;
   setEatingUntil: (time: number) => void;
+  leechStacks: number; // swamp leeches: 3 stacked hits deal damage and clear
+  addLeechStack: () => number;
+  resetLeechStacks: () => void;
   startGame: () => void;
   endGame: () => void;
   resetGame: () => void;
+  enterTestRoom: () => void;
+  exitTestRoom: () => void;
   togglePause: () => void;
   incrementScore: (points: number) => void;
   increaseSpeed: (amount: number) => void;
@@ -109,15 +119,13 @@ interface GameState {
   gainLife: () => void;
   invincibleUntil: number;
   setInvincibleUntil: (time: number) => void;
-  heavyJumpUntil: number;
-  setHeavyJumpUntil: (time: number) => void;
   setWeakJumpUntil: (time: number) => void;
   resetColdTimer: () => void;
   setDinoColor: (color: string) => void;
   setDevMode: (active: boolean) => void;
   addGameTime: (delta: number) => void;
   getCurrentSpeed: () => number;
-  activatePowerup: (powerup: 'wings' | 'super' | 'ghost' | 'jaw' | 'earth', duration: number) => void;
+  activatePowerup: (powerup: 'wings' | 'super' | 'ghost' | 'jaw' | 'earth' | 'dragon', duration: number) => void;
   deactivatePowerup: () => void;
   triggerCameraShake: (intensity: number) => void;
   updateCameraShake: () => void;
@@ -153,6 +161,7 @@ function eggsToCoins(currentRunEggs: Record<EggRarity, number>): number {
 
 export const useGameStore = create<GameState>((set, get) => ({
   status: 'menu',
+  mode: 'endless',
   gameId: 0,
   score: 0,
   highScore: parseInt(localStorage.getItem('trex-highscore') || '0'),
@@ -170,18 +179,24 @@ export const useGameStore = create<GameState>((set, get) => ({
   gameTime: 0,
   activePowerup: 'none',
   powerupEndTime: 0,
+  powerupCooldownUntil: 0,
   cinematicPowerup: null,
   invincibleUntil: 0,
-  heavyJumpUntil: 0,
   weakJumpUntil: 0,
-  slowUntil: 0,
   slowmoUntil: 0,
-  mummySlowUntil: 0,
+  reducedVisibilityUntil: 0,
   originalFogDensity: null,
-  setMummySlowUntil: (time) => set({ mummySlowUntil: time }),
+  setReducedVisibilityUntil: (time) => set({ reducedVisibilityUntil: time }),
   setOriginalFogDensity: (density) => set({ originalFogDensity: density }),
   eatingUntil: 0,
   setEatingUntil: (time) => set({ eatingUntil: time }),
+  leechStacks: 0,
+  addLeechStack: () => {
+    const newCount = get().leechStacks + 1;
+    set({ leechStacks: newCount });
+    return newCount;
+  },
+  resetLeechStacks: () => set({ leechStacks: 0 }),
   coldTimer: 30,
   isSandstorm: true,
   cameraShake: 0,
@@ -211,26 +226,27 @@ export const useGameStore = create<GameState>((set, get) => ({
     set((state) => {
       const updates: Partial<GameState> = {
         status: 'playing',
+        mode: 'endless',
         score: 0,
         speed: INITIAL_SPEED,
         gameId: state.gameId + 1,
         gameTime: 0,
         activePowerup: 'none',
         powerupEndTime: 0,
+        powerupCooldownUntil: 0,
         cinematicPowerup: null,
         scenario: 'desert',
         isSandstorm: true,
         lives: INITIAL_LIVES,
         invincibleUntil: 0,
-        heavyJumpUntil: 0,
         weakJumpUntil: 0,
-        slowUntil: 0,
         slowmoUntil: 0,
         coldTimer: 30,
         floatingTexts: [],
-        mummySlowUntil: 0,
+        reducedVisibilityUntil: 0,
         originalFogDensity: null,
         eatingUntil: 0,
+        leechStacks: 0,
         isTransitioning: false,
         transitionStartTime: 0,
         pendingScenario: null,
@@ -241,7 +257,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         pendingEggRarity: null
       };
 
-      if (state.mummySlowUntil > 0 && state.originalFogDensity) {
+      if (state.reducedVisibilityUntil > 0 && state.originalFogDensity) {
         updates.fogSettings = { ...state.fogSettings, [state.scenario]: state.originalFogDensity };
       }
 
@@ -272,8 +288,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (state.status === 'gameover') return 0;
     let s = state.speed;
     if (performance.now() < state.slowmoUntil) s *= 0.3;
-    else if (performance.now() < state.mummySlowUntil) s /= 1.5;
-    else if (performance.now() < state.slowUntil) s *= 0.5;
 
     if (state.scenario === 'snow' && state.coldTimer <= 0) {
       s *= 0.8;
@@ -286,6 +300,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     speed: INITIAL_SPEED,
     gameTime: 0,
     activePowerup: state.activePowerup,
+    powerupCooldownUntil: 0,
     isSandstorm: true,
     floatingTexts: [],
     isTransitioning: false,
@@ -293,15 +308,26 @@ export const useGameStore = create<GameState>((set, get) => ({
     pendingScenario: null,
     fogSettings: INITIAL_FOG_SETTINGS,
     coldTimer: 30,
-    mummySlowUntil: 0,
+    reducedVisibilityUntil: 0,
     originalFogDensity: null,
     eatingUntil: 0,
+    leechStacks: 0,
     currentRunEggs: { common: 0, rare: 0, ultraRare: 0 },
     eggsInTail: [],
     eggSpawnScores: [],
     shouldSpawnEgg: false,
     pendingEggRarity: null
   })),
+  enterTestRoom: () => set({
+    mode: 'testroom',
+    // Reuses status:'playing' so the existing Ground components scroll the
+    // world for free (their scroll gate allowlists exactly 'playing'/'menu').
+    status: 'playing',
+    scenario: 'desert',
+    isSandstorm: false,
+    speed: INITIAL_SPEED,
+  }),
+  exitTestRoom: () => set({ mode: 'endless', status: 'menu' }),
   togglePause: () => set((state) => {
     if (state.status === 'playing') return { status: 'paused' };
     if (state.status === 'paused') return { status: 'playing' };
@@ -360,12 +386,13 @@ export const useGameStore = create<GameState>((set, get) => ({
         score: Math.floor(state.score),
         activePowerup: 'none',
         lives: 0,
-        mummySlowUntil: 0,
+        reducedVisibilityUntil: 0,
         originalFogDensity: null,
-        eatingUntil: 0
+        eatingUntil: 0,
+        leechStacks: 0
       };
 
-      if (state.mummySlowUntil > 0 && state.originalFogDensity) {
+      if (state.reducedVisibilityUntil > 0 && state.originalFogDensity) {
         updates.fogSettings = { ...state.fogSettings, [state.scenario]: state.originalFogDensity };
       }
 
@@ -379,9 +406,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   }),
   gainLife: () => set((state) => ({ lives: Math.min(state.lives + 1, MAX_LIVES) })),
   setInvincibleUntil: (time) => set({ invincibleUntil: time }),
-  setHeavyJumpUntil: (time) => set({ heavyJumpUntil: time }),
   setWeakJumpUntil: (time) => set({ weakJumpUntil: time }),
-  setSlowUntil: (time) => set({ slowUntil: time }),
   resetColdTimer: () => set((state) => {
     const updates: Partial<GameState> = { coldTimer: 30 };
     if (state.scenario === 'snow' && state.coldTimer <= 0 && state.originalFogDensity) {
@@ -396,11 +421,11 @@ export const useGameStore = create<GameState>((set, get) => ({
     const newTime = state.gameTime + delta;
     const updates: Partial<GameState> = { gameTime: newTime };
 
-    if (state.mummySlowUntil > 0 && performance.now() >= state.mummySlowUntil) {
+    if (state.reducedVisibilityUntil > 0 && performance.now() >= state.reducedVisibilityUntil) {
       if (state.originalFogDensity) {
         updates.fogSettings = { ...state.fogSettings, [state.scenario]: state.originalFogDensity };
       }
-      updates.mummySlowUntil = 0;
+      updates.reducedVisibilityUntil = 0;
       updates.originalFogDensity = null;
     }
 
@@ -449,16 +474,18 @@ export const useGameStore = create<GameState>((set, get) => ({
   }),
   activatePowerup: (powerup, duration) => set((state) => {
     const info: Record<string, { name: string; desc: string }> = {
-      jaw: { name: 'Feroz', desc: 'Coma pássaros à vontade' },
+      jaw: { name: 'Feroz', desc: 'Coma qualquer inimigo' },
       ghost: { name: 'Fantasma', desc: 'Voe e atravesse' },
-      wings: { name: 'Anjo', desc: 'Bata sua asa uma vez' },
+      wings: { name: 'Anjo', desc: 'Voe e plane devagar' },
       earth: { name: 'Escavador', desc: 'Entre no chão por um tempo' },
       super: { name: 'SUPERDINO', desc: 'DESTRUA TUDO!!!' },
+      dragon: { name: 'Dragão', desc: 'Cospe bolas de fogo' },
     };
     const pInfo = info[powerup] || { name: powerup.toUpperCase(), desc: '' };
     return {
       activePowerup: powerup,
       powerupEndTime: state.gameTime + duration,
+      powerupCooldownUntil: performance.now() + POWERUP_SPAWN_COOLDOWN_MS,
       cinematicPowerup: { ...pInfo, type: powerup },
       slowmoUntil: performance.now() + 1500
     };

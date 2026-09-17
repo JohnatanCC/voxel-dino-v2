@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { AnimatePresence } from 'motion/react';
 import { Camera } from 'lucide-react';
-import { playBackgroundMusic, stopBackgroundMusic, pauseBackgroundMusic } from '../utils/audio';
+import { playBackgroundMusic, stopBackgroundMusic, pauseBackgroundMusic, playPowerupMusic } from '../utils/audio';
 import { POWERUP_DURATION } from '../config/balance';
 import { Hud } from './ui/Hud';
 import { MainMenu } from './ui/MainMenu';
@@ -10,6 +10,7 @@ import { SettingsModal } from './ui/SettingsModal';
 import { GameOverScreen } from './ui/GameOverScreen';
 import { PauseMenu } from './ui/PauseMenu';
 import { ShopOverlay } from './ui/ShopOverlay';
+import { AssetLibraryOverlay } from './ui/AssetLibraryOverlay';
 import { TouchControls } from './ui/TouchControls';
 import { PowerupToast } from './ui/PowerupToast';
 
@@ -17,6 +18,7 @@ export function UI() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobilePortrait, setIsMobilePortrait] = useState(false);
   const [isShopOpen, setIsShopOpen] = useState(false);
+  const [isExtraOpen, setIsExtraOpen] = useState(false);
 
   useEffect(() => {
     const checkOrientation = () => {
@@ -30,7 +32,7 @@ export function UI() {
     return () => window.removeEventListener('resize', checkOrientation);
   }, []);
 
-  const { status, startGame, scenario, coldTimer, cinematicPowerup, devMode, setDevMode, isTransitioning, transitionStartTime, gameTime } = useGameStore();
+  const { status, startGame, scenario, coldTimer, cinematicPowerup, devMode, setDevMode, isTransitioning, transitionStartTime, gameTime, activePowerup } = useGameStore();
 
   // Cinematic Powerup Auto-Clear Effect
   useEffect(() => {
@@ -44,7 +46,11 @@ export function UI() {
 
   useEffect(() => {
     if (status === 'playing') {
-      playBackgroundMusic(scenario);
+      // Skip if a powerup theme is currently playing — the activePowerup effect below
+      // owns music while one is active and will hand back to this scenario when it ends.
+      if (useGameStore.getState().activePowerup === 'none') {
+        playBackgroundMusic(scenario);
+      }
     } else if (status === 'paused') {
       pauseBackgroundMusic();
     } else if (status === 'menu' || status === 'gameover') {
@@ -55,6 +61,17 @@ export function UI() {
 
     return () => stopBackgroundMusic();
   }, [status, scenario]);
+
+  // Powerup pickup: override the current track with that powerup's own short theme,
+  // then hand back to the scenario/menu track once it wears off.
+  useEffect(() => {
+    if (status !== 'playing') return;
+    if (activePowerup !== 'none') {
+      playPowerupMusic(activePowerup);
+    } else {
+      playBackgroundMusic(scenario);
+    }
+  }, [activePowerup, status]);
 
   // Global shortcuts: start game / toggle pause
   useEffect(() => {
@@ -98,14 +115,18 @@ export function UI() {
 
       <AnimatePresence>
         {status === 'menu' && !devMode && (
-          <MainMenu onOpenSettings={() => setIsSettingsOpen(true)} onOpenShop={() => setIsShopOpen(true)} />
+          <MainMenu
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenShop={() => setIsShopOpen(true)}
+            onOpenExtra={() => setIsExtraOpen(true)}
+          />
         )}
 
         {/* Secret Powerup Button */}
         {status === 'menu' && !devMode && (
            <button key="secret-btn"
              onClick={() => {
-                const powerups = ['wings', 'super', 'ghost', 'jaw', 'earth'] as const;
+                const powerups = ['wings', 'super', 'ghost', 'jaw', 'earth', 'dragon'] as const;
                 const rand = powerups[Math.floor(Math.random() * powerups.length)];
                 useGameStore.getState().activatePowerup(rand, POWERUP_DURATION);
              }}
@@ -152,6 +173,11 @@ export function UI() {
       {/* Shop Overlay Panel */}
       <AnimatePresence>
         {isShopOpen && <ShopOverlay onClose={() => setIsShopOpen(false)} />}
+      </AnimatePresence>
+
+      {/* Asset Library Overlay Panel */}
+      <AnimatePresence>
+        {isExtraOpen && <AssetLibraryOverlay onClose={() => setIsExtraOpen(false)} />}
       </AnimatePresence>
     </div>
   );

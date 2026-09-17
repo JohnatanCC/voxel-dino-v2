@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { ChevronLeft, ChevronRight, Settings } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, Boxes, FlaskConical } from 'lucide-react';
 import { Canvas } from '@react-three/fiber';
 import { useGameStore, SKINS } from '../../store/gameStore';
 import { RotatingDinoPreview } from './shared';
@@ -7,10 +7,11 @@ import { RotatingDinoPreview } from './shared';
 interface MainMenuProps {
   onOpenSettings: () => void;
   onOpenShop: () => void;
+  onOpenExtra: () => void;
 }
 
-export function MainMenu({ onOpenSettings, onOpenShop }: MainMenuProps) {
-  const { startGame, ownedSkins, equippedSkin } = useGameStore();
+export function MainMenu({ onOpenSettings, onOpenShop, onOpenExtra }: MainMenuProps) {
+  const { startGame, ownedSkins, equippedSkin, enterTestRoom } = useGameStore();
 
   return (
     <motion.div key="menu"
@@ -19,17 +20,6 @@ export function MainMenu({ onOpenSettings, onOpenShop }: MainMenuProps) {
       exit={{ opacity: 0 }}
       className="absolute inset-0 pointer-events-none z-20"
     >
-      {/* Top-Right: Settings Button */}
-      <div className="absolute top-4 right-4 z-30 pointer-events-auto flex items-center gap-3">
-        <button
-          onClick={onOpenSettings}
-          className="bg-[#5c3a21] hover:bg-[#8c6239] active:translate-y-[2px] text-[#fdf6e2] p-2.5 rounded-xl border-4 border-[#8c6239] shadow-lg cursor-pointer transition-all"
-          title="Opções"
-        >
-          <Settings className="w-5 h-5" />
-        </button>
-      </div>
-
       {/* Bottom-Left (Desktop) / Top-Left (Mobile): Floating Skin Selector Card */}
       <div className="absolute top-4 left-4 md:top-auto md:bottom-4 w-48 md:w-56 z-20 pointer-events-auto bg-[#fdf6e2] rounded-[20px] border-4 md:border-8 border-[#8c6239] border-double p-2.5 md:p-3.5 flex flex-col items-center shadow-2xl pt-5 md:pt-6">
         {/* Wooden Board Header */}
@@ -83,13 +73,38 @@ export function MainMenu({ onOpenSettings, onOpenShop }: MainMenuProps) {
         </div>
       </div>
 
-      {/* Bottom-Center: JOGAR Button */}
-      <div className="absolute bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 md:gap-3 z-20 pointer-events-auto">
+      {/* Bottom-Center: JOGAR + Settings + Extra */}
+      <div className="absolute bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2.5 md:gap-3 z-20 pointer-events-auto">
+        <button
+          onClick={onOpenSettings}
+          className="bg-[#5c3a21] hover:bg-[#8c6239] active:translate-y-[2px] text-[#fdf6e2] p-3 md:p-3.5 rounded-xl md:rounded-2xl border-2 md:border-4 border-[#8c6239] shadow-lg cursor-pointer transition-all"
+          title="Opções"
+        >
+          <Settings className="w-4 h-4 md:w-5 md:h-5" />
+        </button>
+
         <button
           onClick={startGame}
           className="bg-[#27ae60] hover:bg-[#2ecc71] active:translate-y-[2px] text-[#fdf6e2] transition-all game-font py-3 md:py-4 px-10 md:px-14 rounded-xl md:rounded-2xl text-sm md:text-lg font-black border-2 md:border-4 border-[#8c6239] border-b-4 md:border-b-6 border-b-[#1e8449] shadow-lg cursor-pointer flex items-center gap-2 uppercase tracking-wider bg-gradient-to-b from-[#2ecc71] to-[#27ae60] active:border-b-2"
         >
           JOGAR
+        </button>
+
+        <button
+          onClick={onOpenExtra}
+          className="bg-[#5c3a21] hover:bg-[#8c6239] active:translate-y-[2px] text-[#fdf6e2] p-3 md:p-3.5 rounded-xl md:rounded-2xl border-2 md:border-4 border-[#8c6239] shadow-lg cursor-pointer transition-all"
+          title="Extra: Biblioteca de Assets"
+        >
+          <Boxes className="w-4 h-4 md:w-5 md:h-5" />
+        </button>
+
+        <button
+          onClick={enterTestRoom}
+          className="bg-[#0369a1] hover:bg-[#0284c7] active:translate-y-[2px] text-[#fdf6e2] transition-all game-font py-3 md:py-3.5 px-3 md:px-4 rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black border-2 md:border-4 border-[#8c6239] shadow-lg cursor-pointer flex items-center gap-1.5 uppercase tracking-wider"
+          title="Sala de Teste"
+        >
+          <FlaskConical className="w-3.5 h-3.5 md:w-4 md:h-4" />
+          Sala de Teste
         </button>
       </div>
     </motion.div>

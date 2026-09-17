@@ -3,6 +3,9 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore, SkinConfig } from '../../../store/gameStore';
 import { DinoModelProps } from '../types';
+import { Wings } from '../shared/Wings';
+import { useWingFlap } from '../shared/useWingFlap';
+import { useGhostFade } from '../shared/useGhostFade';
 
 interface RabbitDinoProps extends DinoModelProps {
   skinConfig: SkinConfig;
@@ -73,6 +76,8 @@ export function RabbitDinoModel({ animState, previewMode = false, skinConfig }: 
   const rightArmRef = useRef<THREE.Mesh>(null);
   const earLeftRef = useRef<THREE.Group>(null);
   const earRightRef = useRef<THREE.Group>(null);
+  const wingLeftRef = useRef<THREE.Group>(null);
+  const wingRightRef = useRef<THREE.Group>(null);
 
   // Eye Spring Blinking Refs
   const leftEyeGroupRef = useRef<THREE.Group>(null);
@@ -99,6 +104,9 @@ export function RabbitDinoModel({ animState, previewMode = false, skinConfig }: 
     color: baseColor,
     roughness: 0.8,
   }), [baseColor]);
+
+  useGhostFade(animState, [dinoMaterial]);
+  useWingFlap(animState, wingLeftRef, wingRightRef);
 
   useFrame((state, delta) => {
     const current = animState.current;
@@ -416,6 +424,11 @@ export function RabbitDinoModel({ animState, previewMode = false, skinConfig }: 
           <meshStandardMaterial color={bellyColor} roughness={0.8} transparent={isGhost} opacity={isGhost ? 0.45 : 1.0} />
         </mesh>
       </mesh>
+
+      {/* Wings Powerup Visual */}
+      {animState.current.activePowerup === "wings" && (
+        <Wings wingLeftRef={wingLeftRef} wingRightRef={wingRightRef} accentColor={baseColor} />
+      )}
     </group>
   );
 }

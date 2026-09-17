@@ -2,15 +2,14 @@ import * as THREE from 'three';
 import { useGameStore } from '../store/gameStore';
 import { ObstacleData, ObstacleType } from './types';
 import { spawnParticles } from '../components/VFXRenderer';
-import { playHitSound, playScoreSound, playLifeSound, playGameOverSound } from '../utils/audio';
+import { playHitSound, playScoreSound, playLifeSound, playGameOverSound, playPowerupCollectSound } from '../utils/audio';
 import {
   POWERUP_DURATION,
   INVINCIBILITY_DURATION_MS,
-  MUMMY_SLOW_DURATION_MS,
-  HEAVY_JUMP_DURATION_MS,
   WEAK_JUMP_DURATION_MS,
-  PUDDLE_SLOW_DURATION_MS,
   BIRD_EATING_DURATION_MS,
+  REDUCED_VISIBILITY_DURATION_MS,
+  LEECH_STACKS_TO_DAMAGE,
 } from '../config/balance';
 
 export interface CollisionContext {
@@ -56,9 +55,10 @@ function handlePowerup({ obs, x, y }: CollisionContext): void {
       ghost: '#c084fc',
       jaw: '#f97316',
       earth: '#a16207',
+      dragon: '#dc2626',
     };
     spawnParticles('absorb', [x, y, 0], 35, powerupColors[obs.powerupType] || '#fbbf24');
-    playScoreSound();
+    playPowerupCollectSound();
     useGameStore.getState().activatePowerup(obs.powerupType, POWERUP_DURATION);
   }
 
@@ -70,39 +70,11 @@ function handlePowerup({ obs, x, y }: CollisionContext): void {
 type StatusEffectHandler = (ctx: CollisionContext) => void;
 
 const STATUS_EFFECT_HANDLERS: Partial<Record<ObstacleType, StatusEffectHandler>> = {
-  mummy: ({ obs, x, y }) => {
-    playHitSound();
-    spawnParticles('dust', [x, y, 0], 30, '#fef08a');
-
-    const state = useGameStore.getState();
-    const currentFog = state.fogSettings[state.scenario];
-    if (performance.now() >= state.mummySlowUntil) {
-      state.setOriginalFogDensity(currentFog);
-    }
-    state.setFogDensity(state.scenario, 'high');
-    state.setMummySlowUntil(performance.now() + MUMMY_SLOW_DURATION_MS);
-    state.addFloatingText('MÚMIA! NEBLINA E LENTO', x, y + 1, 0, '#eab308');
-
-    despawn(obs);
-  },
-  skull: ({ obs, x, y }) => {
-    playHitSound();
-    spawnParticles('dust', [x, y, 0], 30, '#f8fafc');
-    useGameStore.getState().addFloatingText('PESADO!', x, y + 1, 0, '#94a3b8');
-    useGameStore.getState().setHeavyJumpUntil(performance.now() + HEAVY_JUMP_DURATION_MS);
-    despawn(obs);
-  },
   snowman: ({ obs, x, y }) => {
     playHitSound();
     spawnParticles('dust', [x, y, 0], 30, '#f8fafc');
     useGameStore.getState().addFloatingText('FRACO!', x, y + 1, 0, '#60a5fa');
     useGameStore.getState().setWeakJumpUntil(performance.now() + WEAK_JUMP_DURATION_MS);
-    despawn(obs);
-  },
-  puddle: ({ obs, x, y }) => {
-    spawnParticles('dust', [x, y, 0], 30, '#0ea5e9');
-    useGameStore.getState().addFloatingText('LENTO!', x, y + 1, 0, '#0ea5e9');
-    useGameStore.getState().setSlowUntil(performance.now() + PUDDLE_SLOW_DURATION_MS);
     despawn(obs);
   },
   firebox: ({ obs, x, y }) => {
@@ -122,31 +94,44 @@ function handleDestructiblePowerupObstacle({ obs, x, y }: CollisionContext, acti
     useGameStore.setState((state) => ({ powerupEndTime: state.powerupEndTime - 1 }));
     spawnParticles('sparkle', [x, y, 0], 12, '#a855f7');
   } else {
-    playScoreSound();
+    // Super destroys on contact for the spectacle, but no longer farms score doing it.
     spawnParticles('explosion', [x, y, 0], 30);
     useGameStore.getState().triggerCameraShake(0.5);
-    useGameStore.getState().addFloatingText('+100 Pts', x, y + 1, 0, '#ffffff');
-    useGameStore.getState().incrementScore(100);
     useGameStore.getState().triggerCameraShake(0.3);
   }
   despawn(obs);
 }
 
-// --- Bird: eaten by the jaw powerup, or eaten by default (with a cooldown) ---
+// --- Shared "destroy an obstacle for score" effect, used by anything that destroys
+//     obstacles from outside the normal dino/obstacle collision (e.g. the dragon's fireball) ---
+
+export function destroyObstacleWithScore(obs: ObstacleData, x: number, y: number, color = '#f97316'): void {
+  playScoreSound();
+  spawnParticles('explosion', [x, y, 0], 30, color);
+  useGameStore.getState().triggerCameraShake(0.4);
+  useGameStore.getState().addFloatingText('+100 Pts', x, y + 1, 0, '#ffffff');
+  useGameStore.getState().incrementScore(100);
+  despawn(obs);
+}
+
+// --- Jaw: eats any of these obstacle types outright, regardless of invincibility ---
+
+const JAW_EDIBLE_TYPES: ObstacleType[] = ['bird', 'sand-worm', 'leech'];
+
+function handleJawEat({ obs, x, y }: CollisionContext): void {
+  playScoreSound();
+  spawnParticles('explosion', [x, y, 0], 20, '#ef4444');
+  useGameStore.getState().addFloatingText('+100 Pts', x, y + 1, 0, '#ffffff');
+  useGameStore.getState().incrementScore(100);
+  useGameStore.getState().triggerCameraShake(0.3);
+  despawn(obs);
+}
+
+// --- Bird: eaten by default (with a cooldown) when jaw isn't active ---
 
 function handleBird(ctx: CollisionContext): 'resolved' | 'fallthrough' {
   const { obs, x, y } = ctx;
   const state = useGameStore.getState();
-
-  if (state.activePowerup === 'jaw') {
-    playScoreSound();
-    spawnParticles('explosion', [x, y, 0], 20, '#ef4444');
-    state.addFloatingText('+100 Pts', x, y + 1, 0, '#ffffff');
-    state.incrementScore(100);
-    state.triggerCameraShake(0.3);
-    despawn(obs);
-    return 'resolved';
-  }
 
   const isCurrentlyEating = performance.now() < state.eatingUntil;
   if (!isCurrentlyEating) {
@@ -209,6 +194,42 @@ function handleFatalCollision(ctx: CollisionContext, dinoColor: string): boolean
   return false;
 }
 
+// --- Mushroom (forest): real damage plus a temporary fog/visibility debuff ---
+
+function handleMushroom(ctx: CollisionContext, dinoColor: string): boolean {
+  const { x, y } = ctx;
+  const state = useGameStore.getState();
+  const currentFog = state.fogSettings[state.scenario];
+  if (performance.now() >= state.reducedVisibilityUntil) {
+    state.setOriginalFogDensity(currentFog);
+  }
+  state.setFogDensity(state.scenario, 'high');
+  state.setReducedVisibilityUntil(performance.now() + REDUCED_VISIBILITY_DURATION_MS);
+  state.addFloatingText('VISÃO REDUZIDA!', x, y + 1, 0, '#a3e635');
+
+  return handleFatalCollision(ctx, dinoColor);
+}
+
+// --- Leech (swamp): stacks up on repeated contact, damage + clear on the 3rd ---
+
+function handleLeech(ctx: CollisionContext, dinoColor: string): boolean {
+  const { obs, x, y } = ctx;
+  const state = useGameStore.getState();
+  const stacks = state.addLeechStack();
+
+  if (stacks >= LEECH_STACKS_TO_DAMAGE) {
+    state.resetLeechStacks();
+    state.addFloatingText('SANGUESSUGAS LIMPAS!', x, y + 1, 0, '#ef4444');
+    return handleFatalCollision(ctx, dinoColor);
+  }
+
+  playHitSound();
+  spawnParticles('dust', [x, y, 0], 12, '#7f1d1d');
+  state.addFloatingText(`+1 SANGUESSUGA (${stacks}/${LEECH_STACKS_TO_DAMAGE})`, x, y + 1, 0, '#b91c1c');
+  despawn(obs);
+  return false;
+}
+
 /**
  * Resolves a single dino/obstacle collision: mutates the obstacle to despawn
  * it and applies whatever score/status/damage effect it causes.
@@ -233,6 +254,11 @@ export function resolveObstacleCollision(ctx: CollisionContext, dinoColor: strin
     return false;
   }
 
+  if (state.activePowerup === 'jaw' && JAW_EDIBLE_TYPES.includes(obs.type)) {
+    handleJawEat(ctx);
+    return false;
+  }
+
   if (obs.type === 'bird' && handleBird(ctx) === 'resolved') {
     return false;
   }
@@ -241,10 +267,18 @@ export function resolveObstacleCollision(ctx: CollisionContext, dinoColor: strin
     return false;
   }
 
+  if (obs.type === 'leech') {
+    return handleLeech(ctx, dinoColor);
+  }
+
   const statusEffect = STATUS_EFFECT_HANDLERS[obs.type];
   if (statusEffect) {
     statusEffect(ctx);
     return false;
+  }
+
+  if (obs.type === 'mushroom') {
+    return handleMushroom(ctx, dinoColor);
   }
 
   return handleFatalCollision(ctx, dinoColor);

@@ -3,6 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore, SkinConfig } from '../../../store/gameStore';
 import { DinoModelProps } from '../types';
+import { Wings } from '../shared/Wings';
+import { useWingFlap } from '../shared/useWingFlap';
 
 interface DuckDinoProps extends DinoModelProps {
   skinConfig: SkinConfig;
@@ -75,6 +77,8 @@ export function DuckDinoModel({ animState, previewMode = false, skinConfig }: Du
   const rightArmRef = useRef<THREE.Mesh>(null);
   const wingLeftRef = useRef<THREE.Group>(null);
   const wingRightRef = useRef<THREE.Group>(null);
+  const bigWingLeftRef = useRef<THREE.Group>(null);
+  const bigWingRightRef = useRef<THREE.Group>(null);
   const lowerJawRef = useRef<THREE.Group>(null);
 
   // Eye Spring Blinking Refs
@@ -102,6 +106,8 @@ export function DuckDinoModel({ animState, previewMode = false, skinConfig }: Du
     color: baseColor,
     roughness: 0.8,
   }), [baseColor]);
+
+  useWingFlap(animState, bigWingLeftRef, bigWingRightRef);
 
   useFrame((state, delta) => {
     const current = animState.current;
@@ -305,25 +311,12 @@ export function DuckDinoModel({ animState, previewMode = false, skinConfig }: Du
       }
     }
 
-    // 6. Wing flapping animation
+    // 6. Small folded duck-wing voxels: always folded flat now that the wings powerup
+    // has its own dedicated big wings (see the shared <Wings> below) instead of just
+    // flapping these harder.
     if (wingLeftRef.current && wingRightRef.current) {
-      if (p === 'wings') {
-        const time = state.clock.getElapsedTime();
-        if (!isGrounded && current.velocity < 0) {
-          wingLeftRef.current.rotation.z = THREE.MathUtils.lerp(wingLeftRef.current.rotation.z, Math.PI / 4, 0.2);
-          wingRightRef.current.rotation.z = THREE.MathUtils.lerp(wingRightRef.current.rotation.z, -Math.PI / 4, 0.2);
-        } else if (!isGrounded && current.velocity > 0) {
-          wingLeftRef.current.rotation.z = Math.sin(time * 30) * 0.8;
-          wingRightRef.current.rotation.z = -Math.sin(time * 30) * 0.8;
-        } else {
-          wingLeftRef.current.rotation.z = Math.sin(time * 2) * 0.05;
-          wingRightRef.current.rotation.z = -Math.sin(time * 2) * 0.05;
-        }
-      } else {
-        // Standard folded duck wing posture
-        wingLeftRef.current.rotation.z = 0;
-        wingRightRef.current.rotation.z = 0;
-      }
+      wingLeftRef.current.rotation.z = 0;
+      wingRightRef.current.rotation.z = 0;
     }
 
     // 7. Eye spring blinking animation
@@ -424,13 +417,18 @@ export function DuckDinoModel({ animState, previewMode = false, skinConfig }: Du
         </group>
       </group>
 
-      {/* 3. Small Duck Wings (Folded on the sides, animated when flapping) */}
+      {/* 3. Small Duck Wings (Folded on the sides, always visible) */}
       <group ref={wingLeftRef} position={[-0.1, 1.2, 0.46]}>
         <Voxel position={[-0.1, 0, 0.04]} args={[0.45, 0.45, 0.08]} color={baseColor} isGhost={isGhost} />
       </group>
       <group ref={wingRightRef} position={[-0.1, 1.2, -0.46]}>
         <Voxel position={[-0.1, 0, -0.04]} args={[0.45, 0.45, 0.08]} color={baseColor} isGhost={isGhost} />
       </group>
+
+      {/* Wings Powerup Visual */}
+      {animState.current.activePowerup === "wings" && (
+        <Wings wingLeftRef={bigWingLeftRef} wingRightRef={bigWingRightRef} accentColor={baseColor} />
+      )}
 
       {/* 4. Left Arm (Tiny cartoon duck hand/wingtip) */}
       <mesh ref={leftArmRef} position={[0.5, 1.0, 0.48]} castShadow={!isGhost} receiveShadow={!isGhost}>
