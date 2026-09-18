@@ -3,12 +3,14 @@ import { desertConfig } from './desert';
 import { forestConfig } from './forest';
 import { swampConfig } from './swamp';
 import { snowConfig } from './snow';
+import { lavaConfig } from './lava';
 
 export const SCENARIOS: Record<string, ScenarioConfig> = {
   desert: desertConfig,
   forest: forestConfig,
   swamp: swampConfig,
   snow: snowConfig,
+  lava: lavaConfig,
 };
 
 export type ScenarioType = keyof typeof SCENARIOS;

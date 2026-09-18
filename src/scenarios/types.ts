@@ -1,7 +1,7 @@
 import { ComponentType, Ref } from 'react';
 import * as THREE from 'three';
 
-export type ObstacleType = 'bird' | 'cactus-small' | 'cactus-large' | 'powerup' | 'stump-low' | 'stump-high' | 'snowman' | 'firebox' | 'swamp-log' | 'swamp-fly' | 'croc' | 'tree-hole' | 'egg' | 'sand-worm' | 'mushroom' | 'leech' | 'ice-block';
+export type ObstacleType = 'bird' | 'cactus-small' | 'cactus-large' | 'powerup' | 'stump-low' | 'stump-high' | 'snowman' | 'swamp-log' | 'swamp-fly' | 'croc' | 'tree-hole' | 'egg' | 'sand-worm' | 'mushroom' | 'leech' | 'ice-spike' | 'lava-pool' | 'lava-bug' | 'lava-rex';
 export type PowerupType = 'wings' | 'super' | 'ghost' | 'jaw' | 'earth' | 'dragon' | 'life';
 
 export const DINO_HITBOX_OFFSET = -0.15;
@@ -13,7 +13,6 @@ export const OBSTACLE_HITBOX_OFFSETS: Record<string, number> = {
   'stump-low': -0.15,
   'stump-high': -0.2,
   'snowman': -0.2,
-  'firebox': -0.1,
   'swamp-log': -0.2,
   'swamp-fly': -0.15,
   'croc': -0.2,
@@ -23,7 +22,10 @@ export const OBSTACLE_HITBOX_OFFSETS: Record<string, number> = {
   'sand-worm': -0.2,
   'mushroom': -0.2,
   'leech': -0.05,
-  'ice-block': -0.15
+  'ice-spike': -0.25,
+  'lava-pool': -0.1,
+  'lava-bug': -0.2,
+  'lava-rex': -0.1
 };
 
 export interface ObstacleData {

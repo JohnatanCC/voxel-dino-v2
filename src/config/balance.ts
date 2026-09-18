@@ -76,7 +76,7 @@ export const TEST_ROOM_OBSTACLE_MIN_GAP_S = 1.0;
 export const TEST_ROOM_OBSTACLE_MAX_GAP_S = 1.8;
 
 // Obstacle status-effect durations (ms)
-export const WEAK_JUMP_DURATION_MS = 2500; // snowman
+export const WEAK_JUMP_DURATION_MS = 1200; // snowman
 export const BIRD_EATING_DURATION_MS = 8000;
 export const REDUCED_VISIBILITY_DURATION_MS = 3000; // mushroom (forest)
 
@@ -91,20 +91,32 @@ export const SAND_WORM_CHECK_INTERVAL_S = 2.5; // how often a spawn roll happens
 export const SAND_WORM_CHASE_DURATION_S = 3;
 export const SAND_WORM_SUBMERGED_DURATION_S = 5;
 
-// Falling ice blocks (snow): telegraphed overhead hazard.
-export const ICE_BLOCK_WARNING_S = 1.1; // shadow-on-ground warning before impact
-export const ICE_BLOCK_FALL_HEIGHT = 9;
-
 // Obstacle spawn gap curve (see src/scenarios/helpers.ts)
+// Gaps are time-based (seconds of travel at the current speed) so the reaction window
+// doesn't collapse as the run speeds up.
 export const GAP_BASE_ADD = 6;
-export const GAP_SPEED_MULTIPLIER = 1.1;
-export const GAP_RANDOM_SPEED_MULTIPLIER = 0.8;
-export const GAP_NARROW_SCORE_DIVISOR = 45000;
-export const GAP_MIN_MULTIPLIER = 0.55;
+export const GAP_MIN_REACTION_S = 1.5; // guaranteed travel time between two obstacles
+export const GAP_NARROW_SCORE_DIVISOR = 90000;
+export const GAP_MIN_MULTIPLIER = 0.8;
 
 // Score at which obstacle frequency/variety ramps up further (was "level 5")
 export const FREQUENCY_RAMP_SCORE = 30000;
-export const FREQUENCY_RAMP_MULTIPLIER = 0.65;
+export const FREQUENCY_RAMP_MULTIPLIER = 0.9;
+
+// Lava T-Rex (lava biome event): a giant that stalks from behind, then charges across the
+// track. Only its feet hurt; head/neck/back are a standable platform (see scenarios/standable.ts).
+export const LAVA_REX_MIN_BIOME_SCORE = 2500; // points into the biome before it can show up
+export const LAVA_REX_CHECK_INTERVAL_S = 3;
+export const LAVA_REX_CHANCE = 0.4; // per check
+export const LAVA_REX_COOLDOWN_S = 25; // after an event ends
+export const LAVA_REX_WARNING_S = 1.6; // rumble + telegraph before the charge
+export const LAVA_REX_CHARGE_SPEED = 10; // world units/s across the screen (the ground scrolls under it too)
+export const LAVA_REX_CHARGE_ACCEL = 22;
+export const LAVA_REX_BODY_TOP = 4.4; // standable height of head/back (matches the scaled dino rig)
+export const LAVA_REX_TAIL_TOP = 3.4;
+export const LAVA_REX_FRONT_CHANCE = 0.4; // odds the T-Rex charges from the right, facing the player
+export const LAVA_REX_FRONT_SPEED = 15; // top speed of the head-on charge (leftwards)
+export const LAVA_REX_SURF_BONUS = 150; // points for landing on it
 
 // Bird/bee flock spawns (desert, forest): how many spawn together at once.
 export const OBSTACLE_FLOCK_SIZE = 3;
@@ -114,7 +126,7 @@ export const LIFE_CHANCE = 0.015;
 export const POWERUP_CHANCE = 0.02;
 
 // Biome auto-cycling (infinite mode)
-export const BIOME_ORDER: GameScenario[] = ['desert', 'forest', 'swamp', 'snow'];
+export const BIOME_ORDER: GameScenario[] = ['desert', 'forest', 'swamp', 'snow', 'lava'];
 export const BIOME_CYCLE_SCORE = 10000; // switch biome every N points
 export const BIOME_TRANSITION_SWAP_TIME = 2.0; // seconds into transition when scenario actually swaps
 export const BIOME_TRANSITION_END_TIME = 3.0; // seconds until transition flag clears
@@ -144,9 +156,14 @@ export const OBSTACLE_UNLOCKS: Record<GameScenario, { type: ObstacleType; unlock
     { type: 'bird', unlockScore: 12000 },
   ],
   snow: [
-    { type: 'ice-block', unlockScore: 0 },
-    { type: 'firebox', unlockScore: 0 },
-    { type: 'snowman', unlockScore: 6000 },
+    { type: 'ice-spike', unlockScore: 0 },
+    { type: 'snowman', unlockScore: 3000 },
+    { type: 'bird', unlockScore: 6000 },
+  ],
+  lava: [
+    { type: 'lava-pool', unlockScore: 0 },
+    { type: 'lava-bug', unlockScore: 2000 },
+    { type: 'bird', unlockScore: 4000 },
   ],
 };
 
@@ -155,6 +172,18 @@ export function getAllowedObstacles(scenario: GameScenario, score: number): Obst
   const allowed = unlocks.filter(o => score >= o.unlockScore).map(o => o.type);
   return allowed.length > 0 ? allowed : [unlocks[0].type];
 }
+
+// Dino Coins picked up on the track (rows of 3-5), on top of the egg rewards.
+export const COIN_VALUE = 5; // Dino Coins per pickup
+export const COIN_ROW_MIN = 3;
+export const COIN_ROW_MAX = 5;
+export const COIN_SPACING = 2.0; // world units between coins in a row
+export const COIN_ROW_GAP_MIN = 14; // world units of empty track after a row
+export const COIN_ROW_GAP_MAX = 34;
+
+// Eggs per biome window (each BIOME_CYCLE_SCORE block of the run)
+export const EGGS_PER_BIOME_MIN = 1;
+export const EGGS_PER_BIOME_MAX = 4;
 
 // Egg economy
 export const EGG_COIN_VALUES: Record<EggRarity, number> = {

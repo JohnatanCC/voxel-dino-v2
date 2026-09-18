@@ -83,6 +83,15 @@ input[type="color"]::-webkit-color-swatch {
     padding: 0.4rem 1.5rem !important;
     font-size: 0.7rem !important;
   }
+  .menu-map-btn {
+    width: 1.6rem !important;
+    height: 1.6rem !important;
+    top: -1.9rem !important;
+    font-size: 0.75rem !important;
+  }
+  .menu-map-picker {
+    margin-bottom: 2.4rem !important;
+  }
   .menu-testroom-tab {
     padding: 0.1rem 0 !important;
     font-size: 0.5rem !important;

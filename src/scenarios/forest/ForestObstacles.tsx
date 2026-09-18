@@ -3,7 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState, createRef
 import * as THREE from 'three';
 import { useGameStore } from '../../store/gameStore';
 import { ObstacleData, ObstacleType } from '../types';
-import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition } from '../helpers';
+import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition, pickVariedType } from '../helpers';
 import { VoxelEgg } from '../../components/VoxelEgg';
 import { getAllowedObstacles, FREQUENCY_RAMP_SCORE, OBSTACLE_FLOCK_SIZE } from '../../config/balance';
 import { PowerupBox } from '../shared/PowerupBox';
@@ -232,7 +232,7 @@ export const ForestObstacles = forwardRef<ObstacleData[]>((props, ref) => {
 
     // Scenario-specific obstacles, unlocked progressively as the score climbs
     const allowed = getAllowedObstacles('forest', store.score);
-    const type = allowed[Math.floor(Math.random() * allowed.length)];
+    const type = pickVariedType(allowed);
     let y = 0;
 
     if (type === 'bird') {

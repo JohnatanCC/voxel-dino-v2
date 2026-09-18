@@ -116,16 +116,7 @@ export function RainbowDinoModel({ animState, previewMode = false, skinConfig }:
       dinoMaterial.emissiveIntensity = 3.0;
       dinoMaterial.color.set('#ffffff');
     } else {
-      const storeState = useGameStore.getState();
-      const scenario = storeState.scenario;
-      const coldTimer = storeState.coldTimer;
-      if (scenario === 'snow' && !previewMode) {
-        const frostFactor = Math.max(0, 1.0 - (coldTimer / 45));
-        const frostColor = new THREE.Color('#38bdf8');
-        dinoMaterial.color.copy(new THREE.Color('#ffffff').lerp(frostColor, frostFactor));
-        dinoMaterial.emissive.copy(new THREE.Color('#0ea5e9'));
-        dinoMaterial.emissiveIntensity = frostFactor * 0.8;
-      } else if (p === 'earth') {
+      if (p === 'earth') {
         dinoMaterial.emissive.set('#000000');
         dinoMaterial.emissiveIntensity = 0;
         dinoMaterial.color.set('#666666');

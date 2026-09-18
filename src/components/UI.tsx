@@ -32,7 +32,7 @@ export function UI() {
     return () => window.removeEventListener('resize', checkOrientation);
   }, []);
 
-  const { status, startGame, scenario, coldTimer, cinematicPowerup, devMode, setDevMode, isTransitioning, transitionStartTime, gameTime, activePowerup } = useGameStore();
+  const { status, startGame, scenario, cinematicPowerup, devMode, setDevMode, isTransitioning, transitionStartTime, gameTime, activePowerup } = useGameStore();
 
   // Cinematic Powerup Auto-Clear Effect
   useEffect(() => {
@@ -90,17 +90,6 @@ export function UI() {
 
   return (
     <div className="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between">
-      {/* Frost Screen Overlay */}
-      {scenario === 'snow' && status === 'playing' && coldTimer < 20 && (
-         <div
-           className={`absolute inset-0 z-10 pointer-events-none transition-opacity duration-300 ${coldTimer < 8 ? 'animate-pulse' : ''}`}
-           style={{
-             opacity: 1.0 - (coldTimer / 20),
-             boxShadow: 'inset 0 0 50px rgba(186, 230, 253, 0.5), inset 0 0 100px rgba(186, 230, 253, 0.3)',
-             border: coldTimer < 8 ? '4px solid rgba(239, 68, 68, 0.4)' : '4px solid rgba(186, 230, 253, 0.3)',
-           }}
-         />
-      )}
       {/* Landscape Warning for Mobile */}
       {isMobilePortrait && (
         <div className="fixed inset-0 z-50 bg-[#fde047] flex-col items-center justify-center p-8 text-center pointer-events-auto flex">

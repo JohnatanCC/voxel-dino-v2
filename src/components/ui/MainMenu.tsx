@@ -1,9 +1,18 @@
+import { useState } from 'react';
 import { motion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Settings, Boxes } from 'lucide-react';
 import { Canvas } from '@react-three/fiber';
-import { useGameStore, SKINS } from '../../store/gameStore';
+import { useGameStore, SKINS, GameScenario } from '../../store/gameStore';
 import { RotatingDinoPreview, DinoCoinIcon, DinoFaceIcon } from './shared';
 import { GAME_VERSION } from '../../config/version';
+
+const MAPS: { key: GameScenario; icon: string; label: string }[] = [
+  { key: 'desert', icon: '🏜️', label: 'Deserto' },
+  { key: 'forest', icon: '🌲', label: 'Floresta' },
+  { key: 'swamp', icon: '🐊', label: 'Pântano' },
+  { key: 'snow', icon: '❄️', label: 'Neve' },
+  { key: 'lava', icon: '🌋', label: 'Lava' },
+];
 
 interface MainMenuProps {
   onOpenSettings: () => void;
@@ -12,7 +21,9 @@ interface MainMenuProps {
 }
 
 export function MainMenu({ onOpenSettings, onOpenShop, onOpenExtra }: MainMenuProps) {
-  const { startGame, ownedSkins, equippedSkin, enterTestRoom, coins } = useGameStore();
+  const { startGame, ownedSkins, equippedSkin, enterTestRoom, coins, startBiome } = useGameStore();
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
+  const currentMap = MAPS.find((m) => m.key === startBiome) ?? MAPS[0];
 
   return (
     <motion.div key="menu"
@@ -123,7 +134,34 @@ export function MainMenu({ onOpenSettings, onOpenShop, onOpenExtra }: MainMenuPr
           <Settings className="w-4 h-4 md:w-5 md:h-5" />
         </button>
 
-        {/* JOGAR + Sala de Teste combined as one card, like a "mode" tab under the play button */}
+        {/* Map picker (above JOGAR) + JOGAR/Sala de Teste card */}
+        <div className="relative">
+          {mapPickerOpen && (
+            <div className="menu-map-picker absolute bottom-full mb-11 md:mb-14 left-1/2 -translate-x-1/2 flex gap-1.5 bg-[#fdf6e2] border-2 md:border-4 border-[#8c6239] rounded-2xl p-1.5 shadow-xl z-30">
+              {MAPS.map((m) => (
+                <button
+                  key={m.key}
+                  title={m.label}
+                  onClick={() => {
+                    useGameStore.getState().setStartBiome(m.key);
+                    setMapPickerOpen(false);
+                  }}
+                  className={`w-9 h-9 md:w-11 md:h-11 rounded-xl text-lg md:text-2xl flex items-center justify-center cursor-pointer transition-all border-2 ${
+                    m.key === startBiome ? 'bg-[#fdecc8] border-[#e67e22] scale-105' : 'bg-white border-[#8c6239]/25 hover:border-[#8c6239]/60'
+                  }`}
+                >
+                  {m.icon}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            onClick={() => setMapPickerOpen((open) => !open)}
+            title={`Mapa inicial: ${currentMap.label}`}
+            className="menu-map-btn absolute -top-9 md:-top-11 left-1/2 -translate-x-1/2 w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#5c3a21] hover:bg-[#8c6239] active:translate-y-[1px] border-2 md:border-4 border-[#8c6239] shadow-lg flex items-center justify-center text-sm md:text-lg cursor-pointer transition-all z-20"
+          >
+            {currentMap.icon}
+          </button>
         <div className="flex flex-col rounded-xl md:rounded-2xl overflow-hidden border-2 md:border-4 border-[#8c6239] shadow-lg">
           <button
             onClick={startGame}
@@ -137,6 +175,7 @@ export function MainMenu({ onOpenSettings, onOpenShop, onOpenExtra }: MainMenuPr
           >
             Sala de Teste
           </button>
+        </div>
         </div>
 
         <button

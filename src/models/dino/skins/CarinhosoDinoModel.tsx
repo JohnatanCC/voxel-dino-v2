@@ -89,29 +89,14 @@ export function CarinhosoDinoModel({ animState, previewMode = false, skinConfig 
     const status = current.status;
     const time = state.clock.getElapsedTime();
 
-    // 1. Frost overlay & Emissive powerup lighting
+    // 1. Emissive powerup lighting
     if (p === 'super') {
       dinoMaterial.emissive.setHSL((time * 2) % 1, 1, 0.5);
       dinoMaterial.emissiveIntensity = 1.0;
     } else {
-      const storeState = useGameStore.getState();
-      const scenario = storeState.scenario;
-      const coldTimer = storeState.coldTimer;
-      if (scenario === 'snow' && !previewMode) {
-        const frostFactor = Math.max(0, 1.0 - (coldTimer / 45));
-        const baseColor = new THREE.Color(skinConfig.baseColor);
-        const frostColor = new THREE.Color('#38bdf8');
-        baseColor.lerp(frostColor, frostFactor);
-        dinoMaterial.color.copy(baseColor);
-
-        const iceEmissive = new THREE.Color('#0ea5e9');
-        dinoMaterial.emissive.copy(iceEmissive);
-        dinoMaterial.emissiveIntensity = frostFactor * 0.8;
-      } else {
-        dinoMaterial.emissive.set('#000000');
-        dinoMaterial.emissiveIntensity = 0;
-        dinoMaterial.color.set(skinConfig.baseColor);
-      }
+      dinoMaterial.emissive.set('#000000');
+      dinoMaterial.emissiveIntensity = 0;
+      dinoMaterial.color.set(skinConfig.baseColor);
     }
 
     // 2. Invincibility Blink visual

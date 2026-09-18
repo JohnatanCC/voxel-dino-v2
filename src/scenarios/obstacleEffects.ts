@@ -65,27 +65,6 @@ function handlePowerup({ obs, x, y }: CollisionContext): void {
   despawn(obs);
 }
 
-// --- Status-effect obstacles: apply a temporary effect and despawn, no damage ---
-
-type StatusEffectHandler = (ctx: CollisionContext) => void;
-
-const STATUS_EFFECT_HANDLERS: Partial<Record<ObstacleType, StatusEffectHandler>> = {
-  snowman: ({ obs, x, y }) => {
-    playHitSound();
-    spawnParticles('dust', [x, y, 0], 30, '#f8fafc');
-    useGameStore.getState().addFloatingText('FRACO!', x, y + 1, 0, '#60a5fa');
-    useGameStore.getState().setWeakJumpUntil(performance.now() + WEAK_JUMP_DURATION_MS);
-    despawn(obs);
-  },
-  firebox: ({ obs, x, y }) => {
-    playScoreSound();
-    spawnParticles('sparkle', [x, y, 0], 20, '#ef4444');
-    useGameStore.getState().addFloatingText('QUENTE!', x, y + 1, 0, '#ef4444');
-    useGameStore.getState().resetColdTimer();
-    despawn(obs);
-  },
-};
-
 // --- Super/Ghost: any remaining obstacle is destroyed or phased through ---
 
 function handleDestructiblePowerupObstacle({ obs, x, y }: CollisionContext, activePowerup: 'super' | 'ghost'): void {
@@ -116,7 +95,7 @@ export function destroyObstacleWithScore(obs: ObstacleData, x: number, y: number
 
 // --- Jaw: eats any of these obstacle types outright, regardless of invincibility ---
 
-const JAW_EDIBLE_TYPES: ObstacleType[] = ['bird', 'sand-worm', 'leech', 'croc'];
+const JAW_EDIBLE_TYPES: ObstacleType[] = ['bird', 'sand-worm', 'leech', 'croc', 'lava-bug'];
 
 function handleJawEat({ obs, x, y }: CollisionContext): void {
   playScoreSound();
@@ -202,8 +181,8 @@ function handleFatalCollision(ctx: CollisionContext, dinoColor: string): boolean
 
 // --- Mushroom (forest): real damage plus a temporary fog/visibility debuff ---
 
-function handleMushroom(ctx: CollisionContext, dinoColor: string): boolean {
-  const { x, y } = ctx;
+// Temporary fog debuff shared by the forest mushroom and the snowman.
+function applyReducedVisibility(x: number, y: number, label: string): void {
   const state = useGameStore.getState();
   const currentFog = state.fogSettings[state.scenario];
   if (performance.now() >= state.reducedVisibilityUntil) {
@@ -211,8 +190,20 @@ function handleMushroom(ctx: CollisionContext, dinoColor: string): boolean {
   }
   state.setFogDensity(state.scenario, 'high');
   state.setReducedVisibilityUntil(performance.now() + REDUCED_VISIBILITY_DURATION_MS);
-  state.addFloatingText('VISÃO REDUZIDA!', x, y + 1, 0, '#a3e635');
+  state.addFloatingText('VISÃO REDUZIDA!', x, y + 1, 0, label);
+}
 
+function handleMushroom(ctx: CollisionContext, dinoColor: string): boolean {
+  applyReducedVisibility(ctx.x, ctx.y, '#a3e635');
+  return handleFatalCollision(ctx, dinoColor);
+}
+
+// --- Snowman (snow): real damage, a short weak-jump slow, plus reduced visibility ---
+
+function handleSnowman(ctx: CollisionContext, dinoColor: string): boolean {
+  const { x, y } = ctx;
+  applyReducedVisibility(x, y, '#93c5fd');
+  useGameStore.getState().setWeakJumpUntil(performance.now() + WEAK_JUMP_DURATION_MS);
   return handleFatalCollision(ctx, dinoColor);
 }
 
@@ -255,6 +246,12 @@ export function resolveObstacleCollision(ctx: CollisionContext, dinoColor: strin
 
   const state = useGameStore.getState();
 
+  // The lava T-Rex is a scripted event, not a one-hit obstacle: Super/Ghost just let the dino
+  // through without destroying it or draining the powerup every frame it overlaps.
+  if (obs.type === 'lava-rex' && (state.activePowerup === 'super' || state.activePowerup === 'ghost')) {
+    return false;
+  }
+
   if (state.activePowerup === 'super' || state.activePowerup === 'ghost') {
     handleDestructiblePowerupObstacle(ctx, state.activePowerup);
     return false;
@@ -277,10 +274,8 @@ export function resolveObstacleCollision(ctx: CollisionContext, dinoColor: strin
     return handleLeech(ctx, dinoColor);
   }
 
-  const statusEffect = STATUS_EFFECT_HANDLERS[obs.type];
-  if (statusEffect) {
-    statusEffect(ctx);
-    return false;
+  if (obs.type === 'snowman') {
+    return handleSnowman(ctx, dinoColor);
   }
 
   if (obs.type === 'mushroom') {

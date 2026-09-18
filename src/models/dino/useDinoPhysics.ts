@@ -5,6 +5,7 @@ import { useGameStore } from '../../store/gameStore';
 import { playJumpSound } from '../../utils/audio';
 import { spawnParticles } from '../../components/VFXRenderer';
 import { DinoAnimationState } from './types';
+import { findSupport } from '../../scenarios/standable';
 import {
   GRAVITY,
   JUMP_VELOCITY,
@@ -36,6 +37,7 @@ export function useDinoPhysics(previewMode = false) {
   const earthDuration = useRef(0);
   const jumpBufferUntil = useRef(0);
   const jumpHoldStart = useRef(0);
+  const onSurface = useRef(false); // standing on a moving platform (e.g. the lava T-Rex's back)
 
   const animState = useRef<DinoAnimationState>({
     runPhase: 0,
@@ -135,7 +137,7 @@ export function useDinoPhysics(previewMode = false) {
       }
       if (e.key === "ArrowDown" || e.key === "s") {
         isCrouching.current = true;
-        if (state.activePowerup === "earth" && earthCooldown.current <= 0) {
+        if (state.activePowerup === "earth" && earthCooldown.current <= 0 && !onSurface.current) {
           if (!isUnderground.current) {
             useGameStore.getState().triggerCameraShake(0.8);
             spawnParticles("explosion", [DINO_X, 0, 0], 30, "#a8a29e");
@@ -248,14 +250,21 @@ export function useDinoPhysics(previewMode = false) {
       }
       let newY = logicalY.current + newVel * delta;
 
-      if (newY <= 0) {
-        newY = 0;
+      // Moving platforms only catch a dino that is coming down onto them; without one this is
+      // the plain ground at y = 0.
+      const support = newVel <= 0 ? findSupport(DINO_X, logicalY.current) : null;
+      const floorY = support ? support.top : 0;
+      onSurface.current = !!support && newY <= floorY;
+
+      if (newY <= floorY) {
+        newY = floorY;
         newVel = 0;
         if (!isGrounded.current) {
+          if (support) support.onLand?.();
           isGrounded.current = true;
           jumpCount.current = 0;
           springVel.current = -15; // squash landing impulse
-          spawnParticles("dust", [DINO_X, 0.1, 0], 15, "#cbd5e1");
+          spawnParticles("dust", [DINO_X, floorY + 0.1, 0], 15, "#cbd5e1");
           useGameStore.getState().triggerCameraShake(0.2);
 
           // Consume a jump pressed slightly before touchdown.
