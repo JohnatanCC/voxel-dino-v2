@@ -191,7 +191,7 @@ try {
   store.getState().startGame();
   // We should have pre-generated egg targets
   const state = store.getState();
-  assert.ok(state.eggSpawnScores.length >= 1 && state.eggSpawnScores.length <= 3);
+  assert.ok(state.eggSpawnScores.length >= 1 && state.eggSpawnScores.length <= 4);
   assert.strictEqual(state.shouldSpawnEgg, false);
   
   // Force score past the first target score
@@ -213,7 +213,7 @@ try {
   store.getState().startGame();
 
   // Push score far beyond the old per-level score caps (used to top out at 30000)
-  store.getState().incrementScore(55000);
+  store.getState().incrementScore(45000); // lands on lava (index 4), not back on desert
   assert.ok(store.getState().score > 40000);
   assert.strictEqual(store.getState().status, 'playing'); // never flips to a "cleared"/win state
 
@@ -235,6 +235,27 @@ try {
   console.log("✅ Test 9: Infinite mode has no win state and biomes auto-cycle by score.");
 } catch (e) {
   console.error("❌ Test 9 failed:", e);
+  process.exit(1);
+}
+
+// Test Case 10: Choosing the start map
+try {
+  const store = useGameStore;
+  store.getState().resetGame();
+  store.getState().setStartBiome('lava');
+  store.getState().startGame();
+  assert.strictEqual(store.getState().scenario, 'lava');
+
+  // The cycle continues from the chosen map: one biome window later it wraps to desert
+  store.getState().incrementScore(10500);
+  store.getState().addGameTime(0.016);
+  assert.strictEqual(store.getState().pendingScenario, 'desert');
+
+  // Leave the default for the other tests
+  store.getState().setStartBiome('desert');
+  console.log("✅ Test 10: Start biome selection and biome cycle offset verified.");
+} catch (e) {
+  console.error("❌ Test 10 failed:", e);
   process.exit(1);
 }
 

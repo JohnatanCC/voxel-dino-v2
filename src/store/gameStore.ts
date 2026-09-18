@@ -14,6 +14,9 @@ import {
   EGG_COIN_VALUES,
   rollEggRarity,
   POWERUP_SPAWN_COOLDOWN_MS,
+  COIN_VALUE,
+  EGGS_PER_BIOME_MIN,
+  EGGS_PER_BIOME_MAX,
 } from '../config/balance';
 
 export type FogDensity = 'off' | 'minimum' | 'low' | 'medium' | 'high';
@@ -23,7 +26,7 @@ export type GameStatus = 'menu' | 'playing' | 'gameover' | 'paused';
 // while mode keeps App.tsx pointed at <TestRoom/> instead of <Game/>.
 export type GameMode = 'endless' | 'testroom';
 export type CameraMode = '2D' | '2.5D';
-export type GameScenario = 'desert' | 'forest' | 'swamp' | 'snow';
+export type GameScenario = 'desert' | 'forest' | 'swamp' | 'snow' | 'lava';
 export type GraphicsQuality = 'low' | 'medium' | 'high';
 
 export interface FloatingText {
@@ -78,6 +81,9 @@ interface GameState {
   speed: number;
   cameraMode: CameraMode;
   scenario: GameScenario;
+  startBiome: GameScenario; // map the next run starts in (chosen on the main menu)
+  setStartBiome: (biome: GameScenario) => void;
+  lavaRexActive: boolean; // lava T-Rex event in progress: regular obstacle spawns pause
   graphicsQuality: GraphicsQuality;
   lives: number;
   dinoColor: string;
@@ -93,7 +99,6 @@ interface GameState {
   isTransitioning: boolean;
   transitionStartTime: number;
   pendingScenario: GameScenario | null;
-  coldTimer: number; // For snow scenario
   weakJumpUntil: number;
   slowmoUntil: number;
   reducedVisibilityUntil: number; // temporary fog from the forest mushroom
@@ -121,7 +126,6 @@ interface GameState {
   invincibleUntil: number;
   setInvincibleUntil: (time: number) => void;
   setWeakJumpUntil: (time: number) => void;
-  resetColdTimer: () => void;
   setDinoColor: (color: string) => void;
   setDevMode: (active: boolean) => void;
   addGameTime: (delta: number) => void;
@@ -140,6 +144,9 @@ interface GameState {
   ownedSkins: string[];
   equippedSkin: string;
   currentRunEggs: Record<EggRarity, number>;
+  currentRunCoins: number; // Dino Coin pickups this run (each worth COIN_VALUE)
+  collectCoin: () => void;
+  eggWindow: number; // biome window (score / BIOME_CYCLE_SCORE) the egg targets were rolled for
   eggsInTail: { id: string; rarity: EggRarity }[];
   eggSpawnScores: number[];
   shouldSpawnEgg: boolean;
@@ -152,7 +159,17 @@ interface GameState {
   generateEggSpawnPattern: () => void;
 }
 
-const INITIAL_FOG_SETTINGS: Record<GameScenario, FogDensity> = { desert: 'minimum', forest: 'minimum', swamp: 'low', snow: 'minimum' };
+const START_BIOME_KEY = 'trex-start-biome';
+const VALID_BIOMES: GameScenario[] = ['desert', 'forest', 'swamp', 'snow', 'lava'];
+function loadStartBiome(): GameScenario {
+  try {
+    const saved = localStorage.getItem(START_BIOME_KEY) as GameScenario | null;
+    if (saved && VALID_BIOMES.includes(saved)) return saved;
+  } catch { /* storage unavailable */ }
+  return 'desert';
+}
+
+const INITIAL_FOG_SETTINGS: Record<GameScenario, FogDensity> = { desert: 'minimum', forest: 'minimum', swamp: 'low', snow: 'minimum', lava: 'medium' };
 
 function eggsToCoins(currentRunEggs: Record<EggRarity, number>): number {
   return currentRunEggs.common * EGG_COIN_VALUES.common
@@ -168,7 +185,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   highScore: parseInt(localStorage.getItem('trex-highscore') || '0'),
   speed: INITIAL_SPEED,
   cameraMode: '2D',
-  scenario: 'desert',
+  scenario: loadStartBiome(),
+  startBiome: loadStartBiome(),
+  lavaRexActive: false,
+  setStartBiome: (biome) => {
+    try { localStorage.setItem(START_BIOME_KEY, biome); } catch { /* storage unavailable */ }
+    set({ startBiome: biome, scenario: biome, isSandstorm: biome === 'desert' });
+  },
   graphicsQuality: typeof window !== 'undefined' ? (localStorage.getItem('trex-graphics-quality') || 'medium') as GraphicsQuality : 'medium',
   lives: INITIAL_LIVES,
   dinoColor: (() => {
@@ -198,8 +221,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     return newCount;
   },
   resetLeechStacks: () => set({ leechStacks: 0 }),
-  coldTimer: 30,
-  isSandstorm: true,
+  isSandstorm: loadStartBiome() === 'desert',
   cameraShake: 0,
   floatingTexts: [],
   isTransitioning: false,
@@ -218,6 +240,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   })(),
   equippedSkin: localStorage.getItem('trex-equipped-skin') || 'dino-classic',
   currentRunEggs: { common: 0, rare: 0, ultraRare: 0 },
+  currentRunCoins: 0,
+  eggWindow: 0,
   eggsInTail: [],
   eggSpawnScores: [],
   shouldSpawnEgg: false,
@@ -236,13 +260,13 @@ export const useGameStore = create<GameState>((set, get) => ({
         powerupEndTime: 0,
         powerupCooldownUntil: 0,
         cinematicPowerup: null,
-        scenario: 'desert',
-        isSandstorm: true,
+        scenario: state.startBiome,
+        isSandstorm: state.startBiome === 'desert',
+        lavaRexActive: false,
         lives: INITIAL_LIVES,
         invincibleUntil: 0,
         weakJumpUntil: 0,
         slowmoUntil: 0,
-        coldTimer: 30,
         floatingTexts: [],
         reducedVisibilityUntil: 0,
         originalFogDensity: null,
@@ -252,6 +276,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         transitionStartTime: 0,
         pendingScenario: null,
         currentRunEggs: { common: 0, rare: 0, ultraRare: 0 },
+        currentRunCoins: 0,
+        eggWindow: 0,
         eggsInTail: [],
         eggSpawnScores: [],
         shouldSpawnEgg: false,
@@ -272,7 +298,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const newHighScore = Math.max(Math.floor(state.score), state.highScore);
     localStorage.setItem('trex-highscore', newHighScore.toString());
 
-    const newCoins = state.coins + eggsToCoins(state.currentRunEggs);
+    const newCoins = state.coins + eggsToCoins(state.currentRunEggs) + state.currentRunCoins * COIN_VALUE;
     localStorage.setItem('trex-coins', newCoins.toString());
 
     return {
@@ -290,9 +316,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     let s = state.speed;
     if (performance.now() < state.slowmoUntil) s *= 0.3;
 
-    if (state.scenario === 'snow' && state.coldTimer <= 0) {
-      s *= 0.8;
-    }
     return s;
   },
   resetGame: () => set((state) => ({
@@ -302,18 +325,21 @@ export const useGameStore = create<GameState>((set, get) => ({
     gameTime: 0,
     activePowerup: state.activePowerup,
     powerupCooldownUntil: 0,
-    isSandstorm: true,
+    scenario: state.startBiome,
+    isSandstorm: state.startBiome === 'desert',
+    lavaRexActive: false,
     floatingTexts: [],
     isTransitioning: false,
     transitionStartTime: 0,
     pendingScenario: null,
     fogSettings: INITIAL_FOG_SETTINGS,
-    coldTimer: 30,
     reducedVisibilityUntil: 0,
     originalFogDensity: null,
     eatingUntil: 0,
     leechStacks: 0,
     currentRunEggs: { common: 0, rare: 0, ultraRare: 0 },
+    currentRunCoins: 0,
+    eggWindow: 0,
     eggsInTail: [],
     eggSpawnScores: [],
     shouldSpawnEgg: false,
@@ -328,7 +354,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     isSandstorm: false,
     speed: INITIAL_SPEED,
   }),
-  exitTestRoom: () => set({ mode: 'endless', status: 'menu' }),
+  exitTestRoom: () => set((state) => ({ mode: 'endless', status: 'menu', scenario: state.startBiome, isSandstorm: state.startBiome === 'desert' })),
   togglePause: () => set((state) => {
     if (state.status === 'playing') return { status: 'paused' };
     if (state.status === 'paused') return { status: 'playing' };
@@ -361,10 +387,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       };
     });
 
-    // Refill the milestone queue once it's exhausted and the last egg has
-    // already been consumed by the obstacle spawner.
+    // Roll a fresh 1-4 egg set each time the run enters a new biome window.
     const state = get();
-    if (state.eggSpawnScores.length === 0 && !state.shouldSpawnEgg) {
+    if (Math.floor(state.score / BIOME_CYCLE_SCORE) !== state.eggWindow) {
       state.generateEggSpawnPattern();
     }
   },
@@ -397,7 +422,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         updates.fogSettings = { ...state.fogSettings, [state.scenario]: state.originalFogDensity };
       }
 
-      const newCoins = state.coins + eggsToCoins(state.currentRunEggs);
+      const newCoins = state.coins + eggsToCoins(state.currentRunEggs) + state.currentRunCoins * COIN_VALUE;
       localStorage.setItem('trex-coins', newCoins.toString());
       updates.coins = newCoins;
 
@@ -408,14 +433,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   gainLife: () => set((state) => ({ lives: Math.min(state.lives + 1, MAX_LIVES) })),
   setInvincibleUntil: (time) => set({ invincibleUntil: time }),
   setWeakJumpUntil: (time) => set({ weakJumpUntil: time }),
-  resetColdTimer: () => set((state) => {
-    const updates: Partial<GameState> = { coldTimer: 30 };
-    if (state.scenario === 'snow' && state.coldTimer <= 0 && state.originalFogDensity) {
-      updates.fogSettings = { ...state.fogSettings, snow: state.originalFogDensity };
-      updates.originalFogDensity = null;
-    }
-    return updates;
-  }),
   setDinoColor: (color) => set({ dinoColor: color }),
   setDevMode: (active) => set({ devMode: active }),
   addGameTime: (delta) => set((state) => {
@@ -432,21 +449,6 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     if (state.activePowerup !== 'none' && newTime > state.powerupEndTime) {
       updates.activePowerup = 'none';
-    }
-
-    if (state.scenario === 'snow' && state.status === 'playing') {
-      const newColdTimer = Math.max(0, state.coldTimer - delta);
-      updates.coldTimer = newColdTimer;
-      if (newColdTimer <= 0 && state.coldTimer > 0) {
-        if (!state.originalFogDensity) {
-          updates.originalFogDensity = state.fogSettings.snow;
-        }
-        updates.fogSettings = { ...state.fogSettings, snow: 'high' };
-
-        // Add floating text
-        const newText: FloatingText = { id: Math.random().toString(36).substr(2, 9), text: 'FROZEN!', x: 0, y: 5, z: 0, color: '#3b82f6', createdAt: performance.now() };
-        updates.floatingTexts = [...state.floatingTexts, newText];
-      }
     }
 
     if (state.isTransitioning && state.pendingScenario) {
@@ -466,7 +468,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
     } else if (state.status === 'playing') {
       // Infinite mode: biomes auto-cycle as the score climbs.
-      const targetIndex = Math.floor(state.score / BIOME_CYCLE_SCORE) % BIOME_ORDER.length;
+      const startIndex = Math.max(0, BIOME_ORDER.indexOf(state.startBiome));
+      const targetIndex = (startIndex + Math.floor(state.score / BIOME_CYCLE_SCORE)) % BIOME_ORDER.length;
       const targetScenario = BIOME_ORDER[targetIndex];
       if (targetScenario !== state.scenario) {
         updates.isTransitioning = true;
@@ -506,6 +509,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setFogDensity: (scenario, density) => set((state) => ({ fogSettings: { ...state.fogSettings, [scenario]: density } })),
 
   // Economy & Skins Action Implementations
+  collectCoin: () => set((state) => ({ currentRunCoins: state.currentRunCoins + 1 })),
   collectEgg: (rarity) => set((state) => {
     const newEggs = { ...state.currentRunEggs, [rarity]: state.currentRunEggs[rarity] + 1 };
     const newEgg = { id: Math.random().toString(36).substr(2, 9), rarity };
@@ -597,15 +601,15 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
   generateEggSpawnPattern: () => {
     const state = get();
-    const curr10k = Math.floor(state.score / 10000);
-    const count = Math.floor(Math.random() * 3) + 1; // 1 to 3 eggs
-    const base = curr10k * 10000;
+    const window = Math.floor(state.score / BIOME_CYCLE_SCORE);
+    const count = EGGS_PER_BIOME_MIN + Math.floor(Math.random() * (EGGS_PER_BIOME_MAX - EGGS_PER_BIOME_MIN + 1));
+    const base = window * BIOME_CYCLE_SCORE;
     const scores = [];
     for (let i = 0; i < count; i++) {
-       const scoreOffset = 500 + Math.random() * 9000;
+       const scoreOffset = 500 + Math.random() * (BIOME_CYCLE_SCORE - 1000);
        scores.push(Math.round(base + scoreOffset));
     }
     scores.sort((a, b) => a - b);
-    set({ eggSpawnScores: scores, shouldSpawnEgg: false, pendingEggRarity: null });
+    set({ eggSpawnScores: scores, eggWindow: window, shouldSpawnEgg: false, pendingEggRarity: null });
   },
 }));

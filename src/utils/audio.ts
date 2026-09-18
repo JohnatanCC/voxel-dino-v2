@@ -56,6 +56,56 @@ export function playScoreSound() {
   osc.stop(audioCtx.currentTime + 0.2);
 }
 
+// Short two-note "coin" ping, played for every Dino Coin picked up on the track.
+export function playCoinSound() {
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(988, now); // B5
+  osc.frequency.setValueAtTime(1319, now + 0.07); // E6
+
+  gain.gain.setValueAtTime(0.06, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+  osc.start(now);
+  osc.stop(now + 0.22);
+}
+
+// Low growl for the lava T-Rex charge: a falling sawtooth with a wobble.
+export function playRoarSound() {
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const lfo = audioCtx.createOscillator();
+  const lfoGain = audioCtx.createGain();
+  const gain = audioCtx.createGain();
+
+  lfo.frequency.value = 28;
+  lfoGain.gain.value = 18;
+  lfo.connect(lfoGain);
+  lfoGain.connect(osc.frequency);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(150, now);
+  osc.frequency.exponentialRampToValueAtTime(48, now + 0.7);
+
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.09, now + 0.08);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.75);
+
+  osc.start(now);
+  lfo.start(now);
+  osc.stop(now + 0.8);
+  lfo.stop(now + 0.8);
+}
+
 export function playLifeSound() {
   if (audioCtx.state === 'suspended') audioCtx.resume();
   const osc = audioCtx.createOscillator();
@@ -189,6 +239,32 @@ for (let i = 0; i < 8; i++) { // 32 beats total
     { f: 800, d: 0.125 }, { f: 0, d: 0.375 }, { f: 800, d: 0.125 }, { f: 0, d: 0.375 },
     { f: 800, d: 0.125 }, { f: 0, d: 0.125 }, { f: 800, d: 0.125 }, { f: 0, d: 0.125 }, { f: 800, d: 0.125 }, { f: 0, d: 0.375 }
   );
+}
+
+
+// --- Lava biome: driving D-phrygian groove (32 beats) ---
+const Eb3 = 155.56;
+const lavaBassRoots = [D3, D3, Eb3, D3, F3, F3, Eb3, D3];
+const bassTrackLava: Note[] = [];
+lavaBassRoots.forEach((root) => {
+  bassTrackLava.push(
+    { f: root, d: 0.5 }, { f: root, d: 0.5 }, { f: 0, d: 0.5 }, { f: root, d: 0.5 },
+    { f: root, d: 0.5 }, { f: 0, d: 0.5 }, { f: root * 2, d: 0.5 }, { f: root, d: 0.5 }
+  );
+});
+
+const melodyTrackLava: Note[] = [
+  { f: D5, d: 1 }, { f: F5, d: 0.5 }, { f: G5, d: 0.5 }, { f: A5, d: 1.5 }, { f: G5, d: 0.5 }, { f: F5, d: 1 }, { f: E5, d: 1 }, { f: D5, d: 2 },
+  { f: D5, d: 1 }, { f: F5, d: 0.5 }, { f: G5, d: 0.5 }, { f: A5, d: 1.5 }, { f: C6, d: 0.5 }, { f: A5, d: 0.5 }, { f: G5, d: 0.5 }, { f: F5, d: 1 }, { f: D5, d: 2 },
+  { f: Eb5, d: 1 }, { f: D5, d: 0.5 }, { f: Eb5, d: 0.5 }, { f: G5, d: 1.5 }, { f: F5, d: 0.5 }, { f: Eb5, d: 1 }, { f: D5, d: 1 }, { f: C5, d: 2 },
+  { f: A4, d: 1 }, { f: D5, d: 0.5 }, { f: F5, d: 0.5 }, { f: A5, d: 2 }, { f: G5, d: 1 }, { f: F5, d: 1 }, { f: E5, d: 1 }, { f: D5, d: 1 },
+];
+
+const harmTrackLava: Note[] = [A4, A4, Bb4, A4, C5, C5, Bb4, A4].map((f) => ({ f, d: 4 }));
+
+const percTrackLava: Note[] = [];
+for (let i = 0; i < 32; i++) {
+  percTrackLava.push({ f: 110, d: 0.25 }, { f: 0, d: 0.25 }, { f: 800, d: 0.125 }, { f: 0, d: 0.375 });
 }
 
 const melodyTrackForest: Note[] = [
@@ -731,6 +807,13 @@ function buildChannelsForScenario(scenario: string): Channel[] {
       new Channel(melodyTrackSwamp, 'square', 0.04, 3000),
       new Channel(harmTrackSwamp, 'sawtooth', 0.03, 6000),
       new Channel(percTrackSwamp, 'square', 0.03, 9000)
+    ];
+  } else if (scenario === 'lava') {
+    return [
+      new Channel(bassTrackLava, 'sawtooth', 0.07, 0),
+      new Channel(percTrackLava, 'square', 0.03, 0),
+      new Channel(melodyTrackLava, 'square', 0.035, 2000),
+      new Channel(harmTrackLava, 'sawtooth', 0.025, 4000)
     ];
   } else if (scenario === 'snow') {
     return [

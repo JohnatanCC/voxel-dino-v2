@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { useGameStore } from '../../store/gameStore';
-import { EGG_COIN_VALUES } from '../../config/balance';
+import { EGG_COIN_VALUES, COIN_VALUE } from '../../config/balance';
 import { DinoCoinIcon } from './shared';
 
 const EGG_ROWS = [
@@ -10,10 +10,11 @@ const EGG_ROWS = [
 ];
 
 export function GameOverScreen() {
-  const { score, startGame, currentRunEggs } = useGameStore();
+  const { score, startGame, currentRunEggs, currentRunCoins } = useGameStore();
 
   const rows = EGG_ROWS.map(row => ({ ...row, count: currentRunEggs[row.key] })).filter(row => row.count > 0);
-  const totalCoins = rows.reduce((sum, row) => sum + row.count * row.value, 0);
+  const trackCoins = currentRunCoins * COIN_VALUE;
+  const totalCoins = rows.reduce((sum, row) => sum + row.count * row.value, 0) + trackCoins;
 
   return (
     <motion.div key="gameover"
@@ -36,10 +37,10 @@ export function GameOverScreen() {
       </div>
 
       <div className="w-full max-w-xs pointer-events-auto">
-        {rows.length > 0 ? (
+        {rows.length > 0 || trackCoins > 0 ? (
           <div className="bg-slate-900/85 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-slate-700/40">
             <div className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-white/40 text-center mb-3">
-              Ovos coletados
+              Recompensas da corrida
             </div>
             <div className="flex flex-col gap-2">
               {rows.map(row => (
@@ -51,6 +52,15 @@ export function GameOverScreen() {
                   <span className="font-bold text-amber-300 flex items-center gap-1">+{row.count * row.value} <DinoCoinIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" /></span>
                 </div>
               ))}
+              {trackCoins > 0 && (
+                <div className="flex items-center justify-between text-xs sm:text-sm text-white">
+                  <span className="flex items-center gap-2">
+                    <DinoCoinIcon className="w-3 h-3 shrink-0" />
+                    Moedas ({currentRunCoins})
+                  </span>
+                  <span className="font-bold text-amber-300 flex items-center gap-1">+{trackCoins} <DinoCoinIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" /></span>
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10 font-black text-amber-300 text-xs sm:text-sm">
               <span>Total</span>
@@ -58,7 +68,7 @@ export function GameOverScreen() {
             </div>
           </div>
         ) : (
-          <p className="text-center text-xs text-white/50">Nenhum ovo coletado nesta corrida.</p>
+          <p className="text-center text-xs text-white/50">Nenhuma recompensa coletada nesta corrida.</p>
         )}
       </div>
 

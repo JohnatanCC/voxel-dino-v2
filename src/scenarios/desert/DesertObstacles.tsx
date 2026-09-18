@@ -3,7 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState, createRef
 import * as THREE from 'three';
 import { useGameStore } from '../../store/gameStore';
 import { ObstacleData, ObstacleType } from '../types';
-import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition } from '../helpers';
+import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition, pickVariedType } from '../helpers';
 import { VoxelEgg } from '../../components/VoxelEgg';
 import { getAllowedObstacles, FREQUENCY_RAMP_SCORE, SAND_WORM_MIN_SCORE, SAND_WORM_CHANCE_RAMP_SCORE, SAND_WORM_MAX_CHANCE, SAND_WORM_CHECK_INTERVAL_S, SAND_WORM_CHASE_DURATION_S, SAND_WORM_SUBMERGED_DURATION_S, OBSTACLE_FLOCK_SIZE } from '../../config/balance';
 import { spawnParticles } from '../../components/VFXRenderer';
@@ -28,6 +28,9 @@ const birdBodyMaterial = new THREE.MeshStandardMaterial({ color: '#475569', roug
 const birdBellyMaterial = new THREE.MeshStandardMaterial({ color: '#cbd5e1', roughness: 0.8 });
 const birdBeakMaterial = new THREE.MeshStandardMaterial({ color: '#fcd34d', roughness: 0.6 });
 const birdEyeMaterial = new THREE.MeshBasicMaterial({ color: '#1c1917' });
+// Ember variant (lava biome): charred body with glowing orange plumage
+const emberBodyMaterial = new THREE.MeshStandardMaterial({ color: '#7c2d12', emissive: '#ea580c', emissiveIntensity: 0.6, roughness: 0.7 });
+const emberBellyMaterial = new THREE.MeshStandardMaterial({ color: '#fb923c', emissive: '#f97316', emissiveIntensity: 0.9, roughness: 0.6 });
 
 const birdBodyGeo = new THREE.BoxGeometry(1.1, 0.4, 0.38);
 const birdBellyGeo = new THREE.BoxGeometry(0.9, 0.22, 0.34);
@@ -108,7 +111,9 @@ export const Cactus = forwardRef<THREE.Group, { x: number; scale: number; numSte
   }
 );
 
-export const Bird = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y }, ref) => {
+export const Bird = forwardRef<THREE.Group, { x: number; y: number; ember?: boolean }>(({ x, y, ember = false }, ref) => {
+  const bodyMat = ember ? emberBodyMaterial : birdBodyMaterial;
+  const bellyMat = ember ? emberBellyMaterial : birdBellyMaterial;
   const innerRef = useRef<THREE.Group>(null);
   const wingLRef = useRef<THREE.Group>(null);
   const wingRRef = useRef<THREE.Group>(null);
@@ -133,26 +138,26 @@ export const Bird = forwardRef<THREE.Group, { x: number; y: number }>(({ x, y },
   return (
     <group ref={innerRef} position={[x, y, 0]}>
       {/* Back */}
-      <mesh position={[0, 0.04, 0]} castShadow receiveShadow material={birdBodyMaterial} geometry={birdBodyGeo} />
+      <mesh position={[0, 0.04, 0]} castShadow receiveShadow material={bodyMat} geometry={birdBodyGeo} />
       {/* Pale belly underside */}
-      <mesh position={[0, -0.16, 0]} castShadow receiveShadow material={birdBellyMaterial} geometry={birdBellyGeo} />
+      <mesh position={[0, -0.16, 0]} castShadow receiveShadow material={bellyMat} geometry={birdBellyGeo} />
 
       {/* Wings — swept back at rest so the silhouette reads as flight, not a cross */}
       <group ref={wingLRef} position={[0.05, 0.18, 0.28]} rotation={[0, 0, -0.4]}>
-        <mesh position={[0, 0, 0.35]} castShadow material={birdBodyMaterial} geometry={birdWingGeo} />
+        <mesh position={[0, 0, 0.35]} castShadow material={bodyMat} geometry={birdWingGeo} />
       </group>
       <group ref={wingRRef} position={[0.05, 0.18, -0.28]} rotation={[0, 0, 0.4]}>
-        <mesh position={[0, 0, -0.35]} castShadow material={birdBodyMaterial} geometry={birdWingGeo} />
+        <mesh position={[0, 0, -0.35]} castShadow material={bodyMat} geometry={birdWingGeo} />
       </group>
 
       {/* Head, eyes, beak */}
-      <mesh position={[-0.58, 0.14, 0]} castShadow receiveShadow material={birdBodyMaterial} geometry={birdHeadGeo} />
+      <mesh position={[-0.58, 0.14, 0]} castShadow receiveShadow material={bodyMat} geometry={birdHeadGeo} />
       <mesh position={[-0.78, 0.15, 0.09]} material={birdEyeMaterial} geometry={birdEyeGeo} />
       <mesh position={[-0.78, 0.15, -0.09]} material={birdEyeMaterial} geometry={birdEyeGeo} />
       <mesh position={[-0.9, 0.12, 0]} rotation={[0, 0, -Math.PI / 2]} castShadow receiveShadow material={birdBeakMaterial} geometry={birdBeakGeo} />
 
       {/* Fan tail */}
-      <mesh position={[0.66, 0.02, 0]} rotation={[0, 0, 0.15]} castShadow receiveShadow material={birdBodyMaterial} geometry={birdTailGeo} />
+      <mesh position={[0.66, 0.02, 0]} rotation={[0, 0, 0.15]} castShadow receiveShadow material={bodyMat} geometry={birdTailGeo} />
     </group>
   );
 });
@@ -379,7 +384,7 @@ export const DesertObstacles = forwardRef<ObstacleData[]>((props, ref) => {
 
     // Scenario-specific obstacles, unlocked progressively as the score climbs
     const allowed = getAllowedObstacles('desert', store.score);
-    const type = allowed[Math.floor(Math.random() * allowed.length)];
+    const type = pickVariedType(allowed);
     let y = 0;
 
     if (type === 'bird') {

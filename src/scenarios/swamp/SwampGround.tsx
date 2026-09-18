@@ -9,7 +9,8 @@ const GROUND_LENGTH = 100;
 const BACKGROUND_LENGTH = 150;
 const LILY_PAD_COUNT = 40;
 const FIREFLY_COUNT = 30;
-const TREE_COUNT = 15;
+const TRUNK_FIREFLIES = 2; // per background tree trunk
+const TREE_COUNT = 10;
 const CLOUD_COUNT = 15;
 const RAIN_COUNT = 200;
 const MOSS_COUNT = 40;
@@ -48,7 +49,8 @@ export function SwampGround() {
   }, []);
   const lilyPadRimRef = useRef<THREE.InstancedMesh>(null);
   const fireflyRef = useRef<THREE.InstancedMesh>(null);
-  
+  const trunkFireflyRef = useRef<THREE.InstancedMesh>(null);
+
   const treeTrunkRef = useRef<THREE.InstancedMesh>(null);
   const treeRoot1Ref = useRef<THREE.InstancedMesh>(null);
   const treeRoot2Ref = useRef<THREE.InstancedMesh>(null);
@@ -367,7 +369,26 @@ export function SwampGround() {
         }
         dummy.updateMatrix();
         treeLeavesRef.current.setMatrixAt(i, dummy.matrix);
+
+        // Glowing fireflies circling each trunk
+        if (trunkFireflyRef.current) {
+          const t = state.clock.elapsedTime;
+          for (let j = 0; j < TRUNK_FIREFLIES; j++) {
+            const a = t * (0.6 + j * 0.3) + i * 1.3 + j * Math.PI;
+            const r = d.scale * (1.1 + j * 0.25);
+            dummy.position.set(
+              d.x + Math.cos(a) * r,
+              d.y + trunkHeight * (0.35 + j * 0.3) + Math.sin(t * 2 + i + j) * 0.3,
+              d.z + Math.sin(a) * r
+            );
+            dummy.rotation.set(0, 0, 0);
+            dummy.scale.setScalar(0.22 * d.scale * (0.8 + Math.sin(t * 4 + i * 2 + j) * 0.2));
+            dummy.updateMatrix();
+            trunkFireflyRef.current.setMatrixAt(i * TRUNK_FIREFLIES + j, dummy.matrix);
+          }
+        }
       }
+      if (trunkFireflyRef.current) trunkFireflyRef.current.instanceMatrix.needsUpdate = true;
       treeTrunkRef.current.instanceMatrix.needsUpdate = true;
       treeRoot1Ref.current.instanceMatrix.needsUpdate = true;
       treeRoot2Ref.current.instanceMatrix.needsUpdate = true;
@@ -452,6 +473,10 @@ export function SwampGround() {
         <boxGeometry args={[1, 1, 1]} />
         <meshBasicMaterial color="#fef08a" />
       </instancedMesh>
+      <instancedMesh frustumCulled={false} ref={trunkFireflyRef} args={[undefined, undefined, TREE_COUNT * TRUNK_FIREFLIES]}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshBasicMaterial color="#fde047" toneMapped={false} />
+      </instancedMesh>
 
             
       
@@ -464,7 +489,7 @@ export function SwampGround() {
 
       {/* Parallax Mangrove Trees Layer */}
       {/* Parallax Mangrove Trees Layer */}
-      <MangroveTrees count={10} zOffset={-50} zSpread={15} speedFactor={0.25} scaleMult={0.8} trunkColor="#44403c" leavesColor="#064e3b" />
+      <MangroveTrees count={5} zOffset={-50} zSpread={15} speedFactor={0.25} scaleMult={0.8} trunkColor="#44403c" leavesColor="#064e3b" />
 
       {/* Low storm clouds */}
       <Clouds color="#334155" count={10} length={180} speedFactor={0.12} opacity={0.7} />

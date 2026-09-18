@@ -12,6 +12,7 @@ const BIOME_KEYS: Record<string, GameScenario> = {
   '2': 'forest',
   '3': 'swamp',
   '4': 'snow',
+  '5': 'lava',
 };
 
 export function TestRoom() {

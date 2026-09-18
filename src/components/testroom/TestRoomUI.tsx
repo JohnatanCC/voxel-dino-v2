@@ -6,6 +6,7 @@ const BIOME_LABELS: Record<string, string> = {
   forest: 'Floresta',
   swamp: 'Pântano',
   snow: 'Neve',
+  lava: 'Lava',
 };
 
 const BIOME_ORDER = Object.keys(SCENARIOS);
@@ -18,8 +19,8 @@ export function TestRoomUI() {
       <div className="flex justify-between items-start">
         <div className="bg-black/50 text-white text-xs md:text-sm rounded-xl px-4 py-2.5 backdrop-blur">
           <div className="font-black uppercase tracking-wide mb-1 game-font">Sala de Teste</div>
-          <div>Bioma: {BIOME_LABELS[scenario] || scenario} ({BIOME_ORDER.indexOf(scenario) + 1}/4)</div>
-          <div className="opacity-80 mt-1">A/D ou ←/→: trocar de pista · Espaço: pular · 1-4: trocar cenário</div>
+          <div>Bioma: {BIOME_LABELS[scenario] || scenario} ({BIOME_ORDER.indexOf(scenario) + 1}/5)</div>
+          <div className="opacity-80 mt-1">A/D ou ←/→: trocar de pista · Espaço: pular · 1-5: trocar cenário</div>
         </div>
         <button
           onClick={() => useGameStore.getState().exitTestRoom()}

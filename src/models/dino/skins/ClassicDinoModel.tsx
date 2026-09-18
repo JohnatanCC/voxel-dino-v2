@@ -10,9 +10,13 @@ import { useGhostFade } from '../shared/useGhostFade';
 
 interface ClassicDinoProps extends DinoModelProps {
   skinConfig: SkinConfig;
+  // Lets other creatures (the lava T-Rex) reuse this rig: move the head, and skip the
+  // player's hurt/invincibility blink that would otherwise leak onto them.
+  headOffset?: [number, number, number];
+  ignoreHurt?: boolean;
 }
 
-export function ClassicDinoModel({ animState, previewMode = false, skinConfig }: ClassicDinoProps) {
+export function ClassicDinoModel({ animState, previewMode = false, skinConfig, headOffset, ignoreHurt = false }: ClassicDinoProps) {
   const leftLegRef = useRef<THREE.Mesh>(null);
   const rightLegRef = useRef<THREE.Mesh>(null);
   const headRef = useRef<THREE.Group>(null);
@@ -78,25 +82,12 @@ export function ClassicDinoModel({ animState, previewMode = false, skinConfig }:
     const isEating = current.isEating;
     const status = current.status;
 
-    // 1. Frost overlay & Emissive powerup lighting
+    // 1. Emissive powerup lighting
     if (p === 'super') {
       dinoMaterial.emissive.setHSL((state.clock.getElapsedTime() * 2) % 1, 1, 0.5);
       dinoMaterial.emissiveIntensity = 1.0;
     } else {
-      const storeState = useGameStore.getState();
-      const scenario = storeState.scenario;
-      const coldTimer = storeState.coldTimer;
-      if (scenario === 'snow' && !previewMode) {
-        const frostFactor = Math.max(0, 1.0 - (coldTimer / 45));
-        const baseColor = new THREE.Color(skinConfig.baseColor);
-        const frostColor = new THREE.Color('#38bdf8');
-        baseColor.lerp(frostColor, frostFactor);
-        dinoMaterial.color.copy(baseColor);
-
-        const iceEmissive = new THREE.Color('#0ea5e9');
-        dinoMaterial.emissive.copy(iceEmissive);
-        dinoMaterial.emissiveIntensity = frostFactor * 0.8;
-      } else if (p === 'earth') {
+      if (p === 'earth') {
         dinoMaterial.emissive.set('#000000');
         dinoMaterial.emissiveIntensity = 0;
         const earthColor = new THREE.Color(skinConfig.baseColor).multiplyScalar(0.4);
@@ -122,7 +113,8 @@ export function ClassicDinoModel({ animState, previewMode = false, skinConfig }:
     // 2. Invincibility Blink visual
     const storeState = useGameStore.getState();
     const now = performance.now();
-    if (now < storeState.invincibleUntil) {
+    const invincibleUntil = ignoreHurt ? 0 : storeState.invincibleUntil;
+    if (now < invincibleUntil) {
       const isWhite = Math.floor(now / 150) % 2 === 0;
       dinoMaterial.color.set(isWhite ? "#ffffff" : skinConfig.baseColor);
       dinoMaterial.emissive.set(isWhite ? "#ffffff" : "#000000");
@@ -298,7 +290,7 @@ export function ClassicDinoModel({ animState, previewMode = false, skinConfig }:
     }
 
     // Hurt wobble overlay on head (Pain feedback)
-    const isHurt = now < storeState.invincibleUntil;
+    const isHurt = now < invincibleUntil;
     if (isHurt && status !== 'gameover' && headRef.current && !previewMode) {
       // Slower and gentler head wobble
       const wobble = Math.sin(now * 0.015) * 0.1;
@@ -419,6 +411,7 @@ export function ClassicDinoModel({ animState, previewMode = false, skinConfig }:
       </mesh>
 
       {/* Head Group (tilts during jump/duck) */}
+      <group position={headOffset ?? [0, 0, 0]}>
       <group ref={headRef} position={[0.4, 1.7, 0]}>
         {/* Golden Angel Halo */}
         {activePowerup === 'wings' && (
@@ -560,6 +553,7 @@ export function ClassicDinoModel({ animState, previewMode = false, skinConfig }:
         </group>
 
 
+      </group>
       </group>
 
       {/* Wings Powerup Visual */}

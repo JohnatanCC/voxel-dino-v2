@@ -12,7 +12,8 @@ import {
 import { Cactus, Bird } from '../../scenarios/desert/DesertObstacles';
 import { Stump, GiantBee, GiantMushroom } from '../../scenarios/forest/ForestObstacles';
 import { DeadTree, Crow, CrocodileObstacle } from '../../scenarios/swamp/SwampObstacles';
-import { IceBlockObstacle, LiveSnowmanObstacle, CampfireObstacle } from '../../scenarios/snow/SnowObstacles';
+import { IceSpikesObstacle, LiveSnowmanObstacle } from '../../scenarios/snow/SnowObstacles';
+import { LavaPool, LavaBug } from '../../scenarios/lava/LavaModels';
 
 interface ObstacleSlot {
   id: number;
@@ -37,7 +38,8 @@ const BIOME_RECIPES: Record<GameScenario, ObstacleRecipe[]> = {
   desert: [{ type: 'cactus-small' }, { type: 'cactus-large' }, { type: 'bird', flying: true }],
   forest: [{ type: 'stump' }, { type: 'mushroom' }, { type: 'bee', flying: true }],
   swamp: [{ type: 'dead-tree' }, { type: 'crocodile' }, { type: 'crow', flying: true }],
-  snow: [{ type: 'ice-block' }, { type: 'snowman' }, { type: 'campfire' }],
+  snow: [{ type: 'ice-spike' }, { type: 'snowman' }, { type: 'bird', flying: true }],
+  lava: [{ type: 'lava-pool' }, { type: 'lava-bug' }, { type: 'ember-bird', flying: true }],
 };
 
 function renderObstacle(type: string, x: number, y: number, seed: number, ref: React.Ref<THREE.Group>) {
@@ -51,9 +53,11 @@ function renderObstacle(type: string, x: number, y: number, seed: number, ref: R
     case 'dead-tree': return <DeadTree ref={ref as any} x={x} scale={1} />;
     case 'crocodile': return <CrocodileObstacle ref={ref as any} x={x} />;
     case 'crow': return <Crow ref={ref as any} x={x} y={y} />;
-    case 'ice-block': return <IceBlockObstacle ref={ref as any} x={x} y={0} />;
+    case 'ice-spike': return <IceSpikesObstacle ref={ref as any} x={x} y={0} />;
+    case 'lava-pool': return <LavaPool ref={ref as any} x={x} scale={seed > 0.5 ? 1.4 : 0.8} />;
+    case 'lava-bug': return <LavaBug ref={ref as any} x={x} />;
+    case 'ember-bird': return <Bird ref={ref as any} x={x} y={y} ember />;
     case 'snowman': return <LiveSnowmanObstacle ref={ref as any} x={x} y={0} />;
-    case 'campfire': return <CampfireObstacle ref={ref as any} x={x} y={0} />;
     default: return null;
   }
 }
@@ -78,7 +82,17 @@ export function TestRoomObstacles({ biome }: TestRoomObstaclesProps) {
     }))
   );
   const spawnTimer = useRef(1.0);
+  // Pool slots are mutated in place, so a new obstacle type only reaches the screen
+  // after a React render — bump this whenever a spawn changes a slot's type.
+  const [, setRenderTick] = useState(0);
   const prevBiome = useRef(biome);
+
+  // Slots start hidden until their first spawn.
+  useEffect(() => {
+    pool.forEach((slot) => {
+      if (slot.outerRef.current) slot.outerRef.current.visible = false;
+    });
+  }, [pool]);
 
   // Clear any in-flight obstacles immediately on a scenario switch (1-4) so
   // only the current biome's obstacle types are ever visible.
@@ -126,6 +140,7 @@ export function TestRoomObstacles({ biome }: TestRoomObstaclesProps) {
         if (freeSlot.innerRef.current) {
           freeSlot.innerRef.current.position.x = freeSlot.x;
         }
+        setRenderTick((t) => t + 1);
       }
       spawnTimer.current = TEST_ROOM_OBSTACLE_MIN_GAP_S + Math.random() * (TEST_ROOM_OBSTACLE_MAX_GAP_S - TEST_ROOM_OBSTACLE_MIN_GAP_S);
     }

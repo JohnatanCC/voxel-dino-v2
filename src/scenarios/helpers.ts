@@ -4,8 +4,7 @@ import {
   LIFE_CHANCE,
   POWERUP_CHANCE,
   GAP_BASE_ADD,
-  GAP_SPEED_MULTIPLIER,
-  GAP_RANDOM_SPEED_MULTIPLIER,
+  GAP_MIN_REACTION_S,
   GAP_NARROW_SCORE_DIVISOR,
   GAP_MIN_MULTIPLIER,
   FREQUENCY_RAMP_SCORE,
@@ -63,10 +62,34 @@ export function calculateNextObstaclePosition(): number {
 
   const frequencyMultiplier = score > FREQUENCY_RAMP_SCORE ? FREQUENCY_RAMP_MULTIPLIER : 1.0;
 
-  const minGap = ((currentSpeed * GAP_SPEED_MULTIPLIER) + GAP_BASE_ADD) * gapMultiplier * frequencyMultiplier;
-  const gap = minGap + Math.random() * (currentSpeed * GAP_RANDOM_SPEED_MULTIPLIER) * gapMultiplier * frequencyMultiplier;
+  const scale = gapMultiplier * frequencyMultiplier;
+  const minGap = (currentSpeed * GAP_MIN_REACTION_S + GAP_BASE_ADD) * scale;
 
-  return SPAWN_DISTANCE + gap;
+  // Uneven rhythm on top of the guaranteed minimum: mostly moderate gaps, regular
+  // breathers, and only rarely a tight pair — so spacing never settles into a pattern.
+  const roll = Math.random();
+  let extraSeconds: number;
+  if (roll < 0.25) extraSeconds = 1.6 + Math.random() * 1.4; // breather
+  else if (roll < 0.85) extraSeconds = 0.4 + Math.random() * 1.2; // moderate
+  else extraSeconds = Math.random() * 0.3; // tight
+
+  return SPAWN_DISTANCE + minGap + currentSpeed * extraSeconds * scale;
+}
+
+// Picks a random obstacle type but avoids repeating the same one three times in a row,
+// which is what makes long stretches read as an obvious pattern.
+const recentPicks: string[] = [];
+export function pickVariedType<T extends string>(allowed: T[]): T {
+  let pool = allowed;
+  const n = recentPicks.length;
+  if (allowed.length > 1 && n >= 2 && recentPicks[n - 1] === recentPicks[n - 2]) {
+    const filtered = allowed.filter((t) => t !== recentPicks[n - 1]);
+    if (filtered.length > 0) pool = filtered;
+  }
+  const choice = pool[Math.floor(Math.random() * pool.length)];
+  recentPicks.push(choice);
+  if (recentPicks.length > 4) recentPicks.shift();
+  return choice;
 }
 
 /**

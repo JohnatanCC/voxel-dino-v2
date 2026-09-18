@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { Camera } from 'lucide-react';
-import { POWERUP_DURATION, POWERUP_ACCENT_COLORS } from '../../config/balance';
+import { DinoCoinIcon } from './shared';
+import { POWERUP_DURATION, POWERUP_ACCENT_COLORS, COIN_VALUE } from '../../config/balance';
 
 const POWERUP_LABELS: Record<string, string> = {
   wings: 'Anjo',
@@ -85,7 +86,7 @@ function PowerupIndicator({ type }: { type: string }) {
 }
 
 export function Hud() {
-  const { status, score, highScore, scenario, coldTimer, currentRunEggs, lives, activePowerup, devMode } = useGameStore();
+  const { status, score, highScore, currentRunEggs, currentRunCoins, lives, activePowerup, devMode } = useGameStore();
 
   if (status === 'menu') return null;
 
@@ -126,6 +127,14 @@ export function Hud() {
             )}
           </div>
 
+          {/* Dino Coins picked up on the track this run */}
+          {(status === 'playing' || status === 'paused') && currentRunCoins > 0 && (
+            <div className="flex items-center gap-1 bg-black/10 px-2 py-0.5 rounded backdrop-blur-sm text-xs sm:text-sm">
+              <DinoCoinIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="font-extrabold text-amber-500">{currentRunCoins * COIN_VALUE}</span>
+            </div>
+          )}
+
           {/* Pause Button */}
           {(status === 'playing' || status === 'paused') && (
             <button
@@ -150,18 +159,6 @@ export function Hud() {
             <Camera className={`w-4 h-4 sm:w-5 sm:h-5 ${devMode ? 'text-amber-500' : 'text-[var(--game-ui-color)]'}`} />
           </button>
         </div>
-        {/* Cold Meter */}
-        {scenario === 'snow' && status === 'playing' && (
-          <div className="flex flex-col items-end gap-1 mt-2">
-            <span className="game-font text-[10px] sm:text-xs text-blue-400 font-bold">FRIO: {Math.ceil(coldTimer)}s</span>
-            <div className="w-24 sm:w-32 h-2.5 bg-slate-800 rounded-none overflow-hidden border border-slate-700/20">
-              <div
-                className={`h-full ${coldTimer < 10 ? 'bg-red-500 animate-pulse' : 'bg-blue-400'}`}
-                style={{ width: `${(coldTimer / 30) * 100}%`, transition: 'width 0.1s linear' }}
-              />
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

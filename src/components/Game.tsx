@@ -11,6 +11,7 @@ import { ObstacleData, DINO_HITBOX_OFFSET, OBSTACLE_HITBOX_OFFSETS } from '../sc
 import { resolveObstacleCollision, destroyObstacleWithScore } from '../scenarios/obstacleEffects';
 import { TrailingEggs } from './TrailingEggs';
 import { Fireball } from './Fireball';
+import { Coins } from './Coins';
 import { DRAGON_FIREBALL_INTERVAL_S, DRAGON_FIREBALL_SPEED, DRAGON_FIREBALL_LIFETIME_S } from '../config/balance';
 
 interface TransitionProps {
@@ -297,6 +298,7 @@ export function Game() {
       <PowerupLight />
       <Dino ref={dinoRef} />
       <TrailingEggs dinoRef={dinoRef} />
+      <Coins obstaclesRef={obstaclesRef} dinoRef={dinoRef} />
       {fireballs.map((fb) => (
         <Fireball key={fb.id} ref={fb.ref} x={fb.x} y={fb.y} />
       ))}

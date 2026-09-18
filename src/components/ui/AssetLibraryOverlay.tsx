@@ -7,7 +7,8 @@ import * as THREE from 'three';
 import { Cactus, Bird, SandWormModel } from '../../scenarios/desert/DesertObstacles';
 import { Stump, GiantBee, GiantMushroom, TreeHoleObstacle } from '../../scenarios/forest/ForestObstacles';
 import { DeadTree, Crow, CrocodileObstacle, LeechObstacle } from '../../scenarios/swamp/SwampObstacles';
-import { IceBlockObstacle, LiveSnowmanObstacle, CampfireObstacle } from '../../scenarios/snow/SnowObstacles';
+import { IceSpikesObstacle, LiveSnowmanObstacle } from '../../scenarios/snow/SnowObstacles';
+import { LavaPool, LavaBug } from '../../scenarios/lava/LavaModels';
 import { BackgroundTreeModel, MangroveTreeModel, LilyPadModel, SnowyTreeModel } from '../environment/EnvironmentModels';
 import { PowerupBox } from '../../scenarios/shared/PowerupBox';
 
@@ -15,7 +16,7 @@ interface AssetLibraryOverlayProps {
   onClose: () => void;
 }
 
-type Biome = 'desert' | 'forest' | 'swamp' | 'snow' | 'shared';
+type Biome = 'desert' | 'forest' | 'swamp' | 'snow' | 'lava' | 'shared';
 
 interface AssetEntry {
   id: string;
@@ -31,6 +32,7 @@ const BIOME_META: Record<Biome, { label: string; accent: string }> = {
   forest: { label: 'Floresta', accent: '#22c55e' },
   swamp: { label: 'Pântano', accent: '#0f766e' },
   snow: { label: 'Neve', accent: '#38bdf8' },
+  lava: { label: 'Lava', accent: '#f97316' },
   shared: { label: 'Compartilhado', accent: '#a855f7' },
 };
 
@@ -40,6 +42,7 @@ const FILTERS: { key: 'all' | Biome; label: string }[] = [
   { key: 'forest', label: 'Floresta' },
   { key: 'swamp', label: 'Pântano' },
   { key: 'snow', label: 'Neve' },
+  { key: 'lava', label: 'Lava' },
   { key: 'shared', label: 'Compartilhado' },
 ];
 
@@ -64,10 +67,13 @@ const ASSET_LIBRARY: AssetEntry[] = [
   { id: 'mangrove-tree', name: 'Mangue', biome: 'swamp', icon: '🌴', note: 'cenário — decoração de fundo (sem colisão)', Model: () => <MangroveTreeModel /> },
   { id: 'lily-pad', name: 'Vitória-Régia', biome: 'swamp', icon: '🪷', note: 'cenário — decoração de fundo (sem colisão)', Model: () => <LilyPadModel /> },
 
-  { id: 'ice-block', name: 'Bloco de Gelo', biome: 'snow', icon: '🧊', note: 'cai do alto — telegrafado por sombra', Model: () => <IceBlockObstacle x={0} y={0} /> },
-  { id: 'snowman', name: 'Boneco de Neve', biome: 'snow', icon: '⛄', note: 'obstáculo de chão animado', Model: () => <LiveSnowmanObstacle x={0} y={0} /> },
-  { id: 'campfire', name: 'Fogueira', biome: 'snow', icon: '🔥', note: 'obstáculo benéfico — reaquece o player', Model: () => <CampfireObstacle x={0} y={0} /> },
+  { id: 'ice-spike', name: 'Espinhos de Gelo', biome: 'snow', icon: '🧊', note: 'obstáculo de chão — causa dano', Model: () => <IceSpikesObstacle x={0} y={0} /> },
+  { id: 'snowman', name: 'Boneco de Neve', biome: 'snow', icon: '⛄', note: 'causa dano + visão reduzida', Model: () => <LiveSnowmanObstacle x={0} y={0} /> },
   { id: 'snowy-tree', name: 'Árvore Nevada', biome: 'snow', icon: '🎄', note: 'cenário — decoração de fundo (sem colisão)', Model: () => <SnowyTreeModel /> },
+
+  { id: 'lava-pool', name: 'Poça de Lava', biome: 'lava', icon: '🌋', note: 'obstáculo de chão — pular por cima', Model: () => <LavaPool x={0} scale={1} /> },
+  { id: 'lava-bug', name: 'Besouro de Magma', biome: 'lava', icon: '🪲', note: 'inseto espinhoso — anda em direção ao player', Model: () => <LavaBug x={0} /> },
+  { id: 'ember-bird', name: 'Ave de Brasa', biome: 'lava', icon: '🔥', note: 'inimigo voador do vulcão', Model: () => <Bird x={0} y={0} ember /> },
 
   { id: 'powerup-super', name: 'Powerup: Super', biome: 'shared', icon: '⭐', note: 'SUPERDINO — destrói tudo no caminho', Model: () => <PowerupBox x={0} y={0} type="super" /> },
   { id: 'powerup-wings', name: 'Powerup: Asas', biome: 'shared', icon: '🪽', note: 'Anjo — bate asa uma vez', Model: () => <PowerupBox x={0} y={0} type="wings" /> },
