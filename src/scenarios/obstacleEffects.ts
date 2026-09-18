@@ -116,7 +116,7 @@ export function destroyObstacleWithScore(obs: ObstacleData, x: number, y: number
 
 // --- Jaw: eats any of these obstacle types outright, regardless of invincibility ---
 
-const JAW_EDIBLE_TYPES: ObstacleType[] = ['bird', 'sand-worm', 'leech'];
+const JAW_EDIBLE_TYPES: ObstacleType[] = ['bird', 'sand-worm', 'leech', 'croc'];
 
 function handleJawEat({ obs, x, y }: CollisionContext): void {
   playScoreSound();
@@ -124,6 +124,12 @@ function handleJawEat({ obs, x, y }: CollisionContext): void {
   useGameStore.getState().addFloatingText('+100 Pts', x, y + 1, 0, '#ffffff');
   useGameStore.getState().incrementScore(100);
   useGameStore.getState().triggerCameraShake(0.3);
+
+  // Eating a creature regenerates a life, capped at MAX_LIVES by gainLife() itself.
+  useGameStore.getState().gainLife();
+  playLifeSound();
+  useGameStore.getState().addFloatingText('+1 VIDA', x, y + 2, 0, '#ef4444');
+
   despawn(obs);
 }
 

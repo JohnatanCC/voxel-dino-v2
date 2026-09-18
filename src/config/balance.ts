@@ -106,6 +106,9 @@ export const GAP_MIN_MULTIPLIER = 0.55;
 export const FREQUENCY_RAMP_SCORE = 30000;
 export const FREQUENCY_RAMP_MULTIPLIER = 0.65;
 
+// Bird/bee flock spawns (desert, forest): how many spawn together at once.
+export const OBSTACLE_FLOCK_SIZE = 3;
+
 // Global rare spawns (life pickups / powerups)
 export const LIFE_CHANCE = 0.015;
 export const POWERUP_CHANCE = 0.02;

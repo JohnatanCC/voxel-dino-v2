@@ -843,3 +843,34 @@ export function stopBackgroundMusic() {
   });
   activeLayers = [];
 }
+
+// Browsers block AudioContext playback until a real user gesture — the very first
+// playBackgroundMusic('menu') call on page load happens before any interaction, so
+// audioCtx.resume() there silently no-ops and nothing is ever actually heard. Listen
+// once for the first genuine click/key/touch anywhere and re-kick whatever track was
+// already selected, since anything scheduled while suspended never actually sounded.
+let audioUnlocked = false;
+function unlockAudioOnFirstGesture() {
+  const unlock = () => {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
+    window.removeEventListener('pointerdown', unlock);
+    window.removeEventListener('keydown', unlock);
+    window.removeEventListener('touchstart', unlock);
+
+    audioCtx.resume().then(() => {
+      const scenario = currentScenarioBgm;
+      if (!scenario) return;
+      currentScenarioBgm = null; // force a real restart instead of the "already playing" early-out
+      if (scenario.startsWith('powerup:')) {
+        playPowerupMusic(scenario.slice('powerup:'.length));
+      } else {
+        playBackgroundMusic(scenario);
+      }
+    });
+  };
+  window.addEventListener('pointerdown', unlock);
+  window.addEventListener('keydown', unlock);
+  window.addEventListener('touchstart', unlock);
+}
+unlockAudioOnFirstGesture();

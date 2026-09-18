@@ -9,6 +9,7 @@ import { DuckDinoModel } from '../../models/dino/skins/DuckDinoModel';
 import { SharkDinoModel } from '../../models/dino/skins/SharkDinoModel';
 import { GospelDinoModel } from '../../models/dino/skins/GospelDinoModel';
 import { RabbitDinoModel } from '../../models/dino/skins/RabbitDinoModel';
+import { CarinhosoDinoModel } from '../../models/dino/skins/CarinhosoDinoModel';
 
 interface TestRoomPlayerProps {
   groupRef: RefObject<THREE.Group | null>;
@@ -38,6 +39,9 @@ export function TestRoomPlayer({ groupRef }: TestRoomPlayerProps) {
     }
     if (equippedSkin === 'dino-rabbit') {
       return <RabbitDinoModel animState={animState} skinConfig={skin} />;
+    }
+    if (equippedSkin === 'dino-carinhoso') {
+      return <CarinhosoDinoModel animState={animState} skinConfig={skin} />;
     }
     return <ClassicDinoModel animState={animState} skinConfig={skin} />;
   };

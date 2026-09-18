@@ -26,6 +26,31 @@ function LivesIndicator({ lives }: { lives: number }) {
   );
 }
 
+function SpeedIndicator() {
+  const [speed, setSpeed] = useState(0);
+
+  useEffect(() => {
+    let frame: number;
+    const update = () => {
+      const state = useGameStore.getState();
+      setSpeed(state.getCurrentSpeed());
+      if (state.status === 'playing') {
+        frame = requestAnimationFrame(update);
+      }
+    };
+    frame = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  return (
+    <div className="flex items-center gap-1.5 bg-slate-900/60 px-2.5 py-1 rounded-xl backdrop-blur-sm">
+      <span className="game-font font-black text-[8px] md:text-[10px] text-emerald-300 uppercase tracking-wider whitespace-nowrap">
+        {speed.toFixed(1)} m/s
+      </span>
+    </div>
+  );
+}
+
 function PowerupIndicator({ type }: { type: string }) {
   const [progress, setProgress] = useState(100);
 
@@ -81,9 +106,10 @@ export function Hud() {
         </div>
       )}
 
-      {/* Lives (Top Left) */}
+      {/* Lives + Speed (Top Left) */}
       <div className="flex flex-col gap-1">
         {status === 'playing' && <LivesIndicator lives={lives} />}
+        {status === 'playing' && <SpeedIndicator />}
       </div>
 
       <div className="flex flex-col items-end gap-2 pointer-events-auto">

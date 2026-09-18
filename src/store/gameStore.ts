@@ -65,7 +65,8 @@ export const SKINS: SkinConfig[] = [
   { id: 'dino-duck', name: 'Pato Dino', rarity: 'exclusive', price: 0, baseColor: '#fde047', spotsColor: '#fb923c', spikesColor: '#78350f', collarColor: '#ef4444' },
   { id: 'dino-shark', name: 'Tubarão Dino', rarity: 'exclusive', price: 0, baseColor: '#3182ce', spotsColor: '#f7fafc', spikesColor: '#2b6cb0', collarColor: '#ec4899' },
   { id: 'dino-gospel', name: 'Gospel Dino', rarity: 'ultra-rare', price: 1000, baseColor: '#fefce8', spotsColor: '#fbbf24', spikesColor: '#f59e0b', collarColor: '#fde68a' },
-  { id: 'dino-rabbit', name: 'Coelho Dino ', rarity: 'exclusive', price: 0, baseColor: '#3b82f6', spotsColor: '#ffffff', spikesColor: '#1d4ed8', collarColor: '#f472b6' }
+  { id: 'dino-rabbit', name: 'Coelho Dino ', rarity: 'exclusive', price: 0, baseColor: '#3b82f6', spotsColor: '#ffffff', spikesColor: '#1d4ed8', collarColor: '#f472b6' },
+  { id: 'dino-carinhoso', name: 'T-Rex Carinhoso', rarity: 'exclusive', price: 0, baseColor: '#f9a8d4', spotsColor: '#ec4899', spikesColor: '#fbcfe8', collarColor: '#fef3c7' }
 ];
 
 interface GameState {
@@ -454,6 +455,10 @@ export const useGameStore = create<GameState>((set, get) => ({
         updates.scenario = state.pendingScenario;
         updates.isSandstorm = state.pendingScenario === 'desert';
         updates.invincibleUntil = performance.now() + BIOME_TRANSITION_INVINCIBILITY_MS;
+        // Crossing into a new biome clears whatever powerup is active, rather than
+        // letting it carry over into a scenario it wasn't collected in.
+        updates.activePowerup = 'none';
+        updates.powerupEndTime = 0;
       }
       if (elapsed >= BIOME_TRANSITION_END_TIME) {
         updates.isTransitioning = false;
@@ -576,6 +581,14 @@ export const useGameStore = create<GameState>((set, get) => ({
       const state = get();
       if (state.ownedSkins.includes('dino-rabbit')) return true; // Already owned
       const newOwned = [...state.ownedSkins, 'dino-rabbit'];
+      localStorage.setItem('trex-owned-skins', JSON.stringify(newOwned));
+      set({ ownedSkins: newOwned });
+      return true;
+    }
+    if (cleanCode === 'TCARINHOSO') {
+      const state = get();
+      if (state.ownedSkins.includes('dino-carinhoso')) return true; // Already owned
+      const newOwned = [...state.ownedSkins, 'dino-carinhoso'];
       localStorage.setItem('trex-owned-skins', JSON.stringify(newOwned));
       set({ ownedSkins: newOwned });
       return true;
