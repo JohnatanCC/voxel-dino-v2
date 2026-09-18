@@ -18,6 +18,62 @@ export function RotatingDinoPreview({ skinId }: { skinId: string }) {
   );
 }
 
+// Custom coin icon for the game's currency ("Dino Coin"): a gold coin embossed
+// with a 3-toe dino footprint, replacing the generic 🪙 emoji everywhere coins show up.
+export function DinoCoinIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <defs>
+        <radialGradient id="dinoCoinGradient" cx="35%" cy="30%" r="75%">
+          <stop offset="0%" stopColor="#fff6d6" />
+          <stop offset="45%" stopColor="#fbbf24" />
+          <stop offset="100%" stopColor="#b45309" />
+        </radialGradient>
+      </defs>
+      <circle cx="12" cy="12" r="10.6" fill="url(#dinoCoinGradient)" stroke="#78350f" strokeWidth="1.2" />
+      <circle cx="12" cy="12" r="8.2" fill="none" stroke="#78350f" strokeOpacity="0.35" strokeWidth="0.8" strokeDasharray="1.1 1.5" />
+      <g fill="#78350f" fillOpacity="0.85">
+        <ellipse cx="12" cy="14.6" rx="3.1" ry="2.3" />
+        <ellipse cx="9.3" cy="10.3" rx="1.15" ry="1.6" transform="rotate(-18 9.3 10.3)" />
+        <ellipse cx="12" cy="9.2" rx="1.2" ry="1.75" />
+        <ellipse cx="14.7" cy="10.3" rx="1.15" ry="1.6" transform="rotate(18 14.7 10.3)" />
+      </g>
+    </svg>
+  );
+}
+
+// Pixel-art dino face used as the game's logo icon.
+export function DinoFaceIcon({ className = 'w-6 h-6' }: { className?: string }) {
+  const palette: Record<string, string> = {
+    B: '#22c55e',
+    S: '#15803d',
+    D: '#14532d',
+    W: '#ffffff',
+    K: '#111111',
+  };
+  const grid = [
+    '..S.S.S..',
+    '.BBBBBBB.',
+    'BBBBBBBBB',
+    'BBWKBWKBB',
+    'BBBBBBBBB',
+    'BBBDBDBBB',
+    'BBBBBBBBB',
+    '.BWBWBWB.',
+    '..BBBBB..',
+  ];
+
+  return (
+    <svg viewBox="0 0 9 9" className={className} style={{ imageRendering: 'pixelated' }} shapeRendering="crispEdges" aria-hidden="true">
+      {grid.map((row, y) =>
+        row.split('').map((cell, x) =>
+          cell === '.' ? null : <rect key={`${x}-${y}`} x={x} y={y} width="1.02" height="1.02" fill={palette[cell]} />
+        )
+      )}
+    </svg>
+  );
+}
+
 export function MiniDinoPixelArt({ skin }: { skin: SkinConfig }) {
   const base = skin.baseColor;
   const spots = skin.spotsColor;

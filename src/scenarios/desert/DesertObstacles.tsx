@@ -5,7 +5,7 @@ import { useGameStore } from '../../store/gameStore';
 import { ObstacleData, ObstacleType } from '../types';
 import { SPAWN_DISTANCE, DESPAWN_DISTANCE, tryGenerateGlobalObstacle, calculateNextObstaclePosition } from '../helpers';
 import { VoxelEgg } from '../../components/VoxelEgg';
-import { getAllowedObstacles, FREQUENCY_RAMP_SCORE, SAND_WORM_MIN_SCORE, SAND_WORM_CHANCE_RAMP_SCORE, SAND_WORM_MAX_CHANCE, SAND_WORM_CHECK_INTERVAL_S, SAND_WORM_CHASE_DURATION_S, SAND_WORM_SUBMERGED_DURATION_S } from '../../config/balance';
+import { getAllowedObstacles, FREQUENCY_RAMP_SCORE, SAND_WORM_MIN_SCORE, SAND_WORM_CHANCE_RAMP_SCORE, SAND_WORM_MAX_CHANCE, SAND_WORM_CHECK_INTERVAL_S, SAND_WORM_CHASE_DURATION_S, SAND_WORM_SUBMERGED_DURATION_S, OBSTACLE_FLOCK_SIZE } from '../../config/balance';
 import { spawnParticles } from '../../components/VFXRenderer';
 import { createNoiseTexture, createStripeTexture } from '../../utils/proceduralTextures';
 import { PowerupBox } from '../shared/PowerupBox';
@@ -487,9 +487,9 @@ export const DesertObstacles = forwardRef<ObstacleData[]>((props, ref) => {
 
       if (spawnFlock) {
          const inactiveSlots = pool.filter(obs => obs.x <= DESPAWN_DISTANCE);
-         if (inactiveSlots.length >= 5) {
+         if (inactiveSlots.length >= OBSTACLE_FLOCK_SIZE) {
             const nextObsX = calculateNextObstaclePosition();
-            for (let k = 0; k < 5; k++) {
+            for (let k = 0; k < OBSTACLE_FLOCK_SIZE; k++) {
                const slot = inactiveSlots[k];
                slot.type = 'bird';
                slot.x = nextObsX + k * (2.5 + Math.random() * 2);
@@ -501,7 +501,7 @@ export const DesertObstacles = forwardRef<ObstacleData[]>((props, ref) => {
                  slot.ref.current.visible = true;
                }
             }
-            nextSpawnX.current = nextObsX + 5 * 3;
+            nextSpawnX.current = nextObsX + OBSTACLE_FLOCK_SIZE * 3;
          } else {
             const inactiveSlot = pool.find(obs => obs.x <= DESPAWN_DISTANCE);
             if (inactiveSlot) {

@@ -13,6 +13,7 @@ import { DuckDinoModel } from "../models/dino/skins/DuckDinoModel";
 import { SharkDinoModel } from "../models/dino/skins/SharkDinoModel";
 import { GospelDinoModel } from "../models/dino/skins/GospelDinoModel";
 import { RabbitDinoModel } from "../models/dino/skins/RabbitDinoModel";
+import { CarinhosoDinoModel } from "../models/dino/skins/CarinhosoDinoModel";
 
 function DustParticles({ animState }: { animState: React.RefObject<DinoAnimationState> }) {
   useFrame(() => {
@@ -72,6 +73,9 @@ export const Dino = forwardRef<THREE.Group, { previewMode?: boolean; skinId?: st
       }
       if (activeSkinId === "dino-rabbit") {
         return <RabbitDinoModel animState={animState} previewMode={previewMode} skinConfig={skin} />;
+      }
+      if (activeSkinId === "dino-carinhoso") {
+        return <CarinhosoDinoModel animState={animState} previewMode={previewMode} skinConfig={skin} />;
       }
       return <ClassicDinoModel animState={animState} previewMode={previewMode} skinConfig={skin} />;
     };

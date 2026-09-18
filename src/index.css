@@ -44,47 +44,47 @@ input[type="color"]::-webkit-color-swatch {
   border-radius: 50%;
 }
 
-/* Responsividade para telas baixas (mobile landscape) */
+/* Responsividade para telas baixas (mobile landscape): a barra de endereço some e a
+   tela vira bem mais baixa que larga, então isso é orientado por altura, não por
+   largura (os breakpoints md/lg do Tailwind não pegam esse caso). */
 @media (max-height: 520px) {
-  .menu-title {
-    font-size: 2.25rem !important; /* equivalente a text-3xl/4xl */
+  .menu-logo-text {
+    font-size: 0.95rem !important;
   }
-  .menu-subtitle {
-    font-size: 0.75rem !important;
-    margin-top: 0 !important;
+  .menu-coin-badge {
+    padding: 0.2rem 0.5rem !important;
   }
-  .menu-title-wrapper {
-    margin-bottom: 0.5rem !important;
+  .menu-coin-badge span {
+    font-size: 0.6rem !important;
   }
-  .menu-controls-container {
-    gap: 0.25rem !important;
+  .menu-char-card {
+    width: 8.5rem !important;
+    padding: 0.35rem !important;
+    padding-top: 0.85rem !important;
   }
-  .menu-start-btn {
-    margin-top: 0.25rem !important;
-    padding: 0.25rem 1.5rem !important;
-    font-size: 1rem !important;
+  .menu-char-card-label {
+    font-size: 0.5rem !important;
+    padding: 0.15rem 0.5rem !important;
   }
-  .menu-install-btn {
-    margin-top: 0.125rem !important;
-    padding: 0.125rem 1rem !important;
-    font-size: 0.75rem !important;
+  .menu-char-preview {
+    max-width: 4.25rem !important;
   }
-  .menu-selector-btn {
-    padding: 0.125rem 0.5rem !important;
+  .menu-char-count {
+    font-size: 0.5rem !important;
   }
-  .menu-selector-btn svg {
-    width: 1.25rem !important;
-    height: 1.25rem !important;
+  .menu-icon-btn {
+    padding: 0.5rem !important;
   }
-  .menu-selector-text {
-    font-size: 0.875rem !important;
-    width: 5rem !important;
+  .menu-icon-btn svg {
+    width: 0.85rem !important;
+    height: 0.85rem !important;
   }
-  .menu-settings-btn {
-    margin-top: 0.125rem !important;
+  .menu-cta {
+    padding: 0.4rem 1.5rem !important;
+    font-size: 0.7rem !important;
   }
-  .menu-settings-btn svg {
-     width: 1.75rem !important;
-     height: 1.75rem !important;
+  .menu-testroom-tab {
+    padding: 0.1rem 0 !important;
+    font-size: 0.5rem !important;
   }
 }

@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { useGameStore } from '../../store/gameStore';
 import { EGG_COIN_VALUES } from '../../config/balance';
+import { DinoCoinIcon } from './shared';
 
 const EGG_ROWS = [
   { key: 'common' as const, label: 'Comum', color: '#4ade80', value: EGG_COIN_VALUES.common },
@@ -47,13 +48,13 @@ export function GameOverScreen() {
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
                     {row.label} ({row.count})
                   </span>
-                  <span className="font-bold text-amber-300">+{row.count * row.value} 🪙</span>
+                  <span className="font-bold text-amber-300 flex items-center gap-1">+{row.count * row.value} <DinoCoinIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" /></span>
                 </div>
               ))}
             </div>
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10 font-black text-amber-300 text-xs sm:text-sm">
               <span>Total</span>
-              <span>+{totalCoins} 🪙</span>
+              <span className="flex items-center gap-1">+{totalCoins} <DinoCoinIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></span>
             </div>
           </div>
         ) : (
